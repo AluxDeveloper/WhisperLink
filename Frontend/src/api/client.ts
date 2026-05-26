@@ -2,7 +2,7 @@
 // Toate apelurile către backend trec prin acest fișier.
 // Schimbă BASE_URL când conectezi backend-ul real.
 
-const BASE_URL = 'http://localhost:5000/api'
+const BASE_URL = 'http://localhost:8080/api'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
