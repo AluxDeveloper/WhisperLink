@@ -12,7 +12,6 @@ using WhisperLink.Domain.Models.Friends;
 
 namespace WhisperLink.BusinessLayer.Core.Actions
 {
-    // Logica business pentru prietenii
     public class FriendActions : IFriendAction
     {
         private readonly AppDbContext _context;
@@ -24,24 +23,19 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             _mapper = mapper;
         }
 
-        // Send friend request - trimite cerere de prietenie
         public async Task<FriendshipDto?> SendFriendRequestAsync(int requesterId, SendFriendRequestDto requestDto)
         {
-            // Nu trimiți la tine însuți
             if (requesterId == requestDto.AddresseeId) return null;
 
-            // Verifică că addressee există
             var addresseeExists = await _context.Users.AnyAsync(u => u.Id == requestDto.AddresseeId);
             if (!addresseeExists) return null;
 
-            // Nu există deja cerere
             var existingRequest = await _context.Friendships.AnyAsync(f =>
                 (f.RequesterId == requesterId && f.AddresseeId == requestDto.AddresseeId) ||
                 (f.RequesterId == requestDto.AddresseeId && f.AddresseeId == requesterId)
             );
             if (existingRequest) return null;
 
-            // Creează friendship
             var friendship = new Friendship
             {
                 RequesterId = requesterId,
@@ -53,7 +47,6 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             _context.Friendships.Add(friendship);
             await _context.SaveChangesAsync();
 
-            // Încarcă requester și addressee
             var friendshipWithUsers = await _context.Friendships
                 .Include(f => f.Requester)
                 .Include(f => f.Addressee)
@@ -62,7 +55,6 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             return _mapper.Map<FriendshipDto>(friendshipWithUsers);
         }
 
-        // Accept friend request - acceptă cererea
         public async Task<FriendshipDto?> AcceptFriendRequestAsync(int friendshipId, int userId)
         {
             var friendship = await _context.Friendships
@@ -71,11 +63,7 @@ namespace WhisperLink.BusinessLayer.Core.Actions
                 .FirstOrDefaultAsync(f => f.Id == friendshipId);
 
             if (friendship == null) return null;
-
-            // Doar addressee-ul poate accepta
             if (friendship.AddresseeId != userId) return null;
-
-            // Trebuie să fie Pending
             if (friendship.Status != FriendshipStatus.Pending) return null;
 
             friendship.Status = FriendshipStatus.Accepted;
@@ -85,26 +73,19 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             return _mapper.Map<FriendshipDto>(friendship);
         }
 
-        // Reject friend request - respinge cererea
         public async Task<bool> RejectFriendRequestAsync(int friendshipId, int userId)
         {
             var friendship = await _context.Friendships.FirstOrDefaultAsync(f => f.Id == friendshipId);
             if (friendship == null) return false;
-
-            // Doar addressee-ul poate respinge
             if (friendship.AddresseeId != userId) return false;
-
-            // Trebuie să fie Pending
             if (friendship.Status != FriendshipStatus.Pending) return false;
 
-            // Șterge cererea
             _context.Friendships.Remove(friendship);
             await _context.SaveChangesAsync();
 
             return true;
         }
 
-        // Get friends - lista de prieteni (Status = Accepted)
         public async Task<IEnumerable<FriendshipDto>> GetFriendsAsync(int userId)
         {
             var friendships = await _context.Friendships
@@ -120,7 +101,6 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             return _mapper.Map<List<FriendshipDto>>(friendships);
         }
 
-        // Get pending requests - cererile în așteptare primite
         public async Task<IEnumerable<FriendshipDto>> GetPendingRequestsAsync(int userId)
         {
             var requests = await _context.Friendships
@@ -133,16 +113,11 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             return _mapper.Map<List<FriendshipDto>>(requests);
         }
 
-        // Remove friend - elimină prietenia
         public async Task<bool> RemoveFriendAsync(int friendshipId, int userId)
         {
             var friendship = await _context.Friendships.FirstOrDefaultAsync(f => f.Id == friendshipId);
             if (friendship == null) return false;
-
-            // Verifică participare
             if (friendship.RequesterId != userId && friendship.AddresseeId != userId) return false;
-
-            // Trebuie să fie Accepted
             if (friendship.Status != FriendshipStatus.Accepted) return false;
 
             _context.Friendships.Remove(friendship);
@@ -151,13 +126,27 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             return true;
         }
 
-        // Block user - blochează utilizator
+        // Metodă nouă - frontend trimite userId-ul prietenului, nu friendshipId
+        public async Task<bool> RemoveFriendByUserIdAsync(int currentUserId, int friendUserId)
+        {
+            var friendship = await _context.Friendships.FirstOrDefaultAsync(f =>
+                f.Status == FriendshipStatus.Accepted &&
+                ((f.RequesterId == currentUserId && f.AddresseeId == friendUserId) ||
+                 (f.RequesterId == friendUserId && f.AddresseeId == currentUserId))
+            );
+
+            if (friendship == null) return false;
+
+            _context.Friendships.Remove(friendship);
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
         public async Task<bool> BlockUserAsync(int friendshipId, int userId)
         {
             var friendship = await _context.Friendships.FirstOrDefaultAsync(f => f.Id == friendshipId);
             if (friendship == null) return false;
-
-            // Verifică participare
             if (friendship.RequesterId != userId && friendship.AddresseeId != userId) return false;
 
             friendship.Status = FriendshipStatus.Blocked;
