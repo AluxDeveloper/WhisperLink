@@ -12,12 +12,11 @@ function getToken(): string {
 }
 
 interface BackendUser {
-  id: number
-  username: string
+  id: string
+  name: string
   email: string
-  firstName?: string
-  lastName?: string
-  isOnline: boolean
+  handle: string
+  avatarUrl?: string
 }
 
 function getStoredUser(): BackendUser | null {
@@ -30,14 +29,17 @@ function getStoredUser(): BackendUser | null {
 }
 
 function backendUserToChatUser(u: BackendUser): ChatUser {
-  const initials = ((u.firstName?.[0] ?? '') + (u.lastName?.[0] ?? '')) || u.username.slice(0, 2).toUpperCase()
+  const initials = u.name
+    ? u.name.split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2)
+    : (u.handle ?? '??').replace('@', '').slice(0, 2).toUpperCase()
+
   return {
     id: String(u.id),
-    name: u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.username,
-    handle: `@${u.username}`,
+    name: u.name ?? '',
+    handle: u.handle ?? '',
     role: '',
-    email: u.email,
-    presence: u.isOnline ? 'online' : 'offline',
+    email: u.email ?? '',
+    presence: 'online',
     avatarText: initials,
     accent: 'linear-gradient(135deg, #8a2be2, #ff007f)',
   }
@@ -52,7 +54,7 @@ function conversationDtoToPreview(dto: ConversationDto): ConversationPreview {
     time: dto.lastMessageTime,
     tag: '',
     unreadCount: dto.unreadCount,
-    avatarText: dto.title.slice(0, 2).toUpperCase(),
+    avatarText: dto.title ? dto.title.slice(0, 2).toUpperCase() : '??',
     accent: 'linear-gradient(135deg, #8a2be2, #ff007f)',
     presence: 'offline',
   }
