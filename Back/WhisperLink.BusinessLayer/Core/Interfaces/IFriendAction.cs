@@ -12,6 +12,7 @@ namespace WhisperLink.BusinessLayer.Core.Interfaces
         Task<IEnumerable<FriendshipDto>> GetFriendsAsync(int userId);
         Task<IEnumerable<FriendshipDto>> GetPendingRequestsAsync(int userId);
         Task<bool> RemoveFriendAsync(int friendshipId, int userId);
+        Task<bool> RemoveFriendByUserIdAsync(int currentUserId, int friendUserId);
         Task<bool> BlockUserAsync(int friendshipId, int userId);
     }
 }
