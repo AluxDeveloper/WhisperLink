@@ -1,28 +1,20 @@
 ﻿using AutoMapper;
 using WhisperLink.Domain.Entities;
-using WhisperLink.Domain.Models.Friends;
-using WhisperLink.Domain.Models.Messages;
 using WhisperLink.Domain.Models.Users;
 
 namespace WhisperLink.BusinessLayer.Core.Helpers
 {
-    // Configurare AutoMapper - conversii automate Entity ↔ DTO
     public class AutoMapperProfile : Profile
     {
         public AutoMapperProfile()
         {
-            // User mappings
-            CreateMap<User, UserDto>();
-            CreateMap<RegisterDto, User>();
-            CreateMap<UpdateUserDto, User>();
-
-            // Message mappings
-            CreateMap<Message, MessageDto>();
-            CreateMap<SendMessageDto, Message>();
-
-            // Friendship mappings
-            CreateMap<Friendship, FriendshipDto>();
-            CreateMap<SendFriendRequestDto, Friendship>();
+            CreateMap<User, UserDto>()
+                .ForMember(dest => dest.Presence, opt => opt.MapFrom(src =>
+                    src.Presence.ToString().ToLower()))
+                .ForMember(dest => dest.DisplayName, opt => opt.MapFrom(src => src.DisplayName))
+                .ForMember(dest => dest.Handle, opt => opt.MapFrom(src => src.Handle))
+                .ForMember(dest => dest.JobRole, opt => opt.MapFrom(src => src.JobRole))
+                .ForMember(dest => dest.Bio, opt => opt.MapFrom(src => src.Bio));
         }
     }
 }
