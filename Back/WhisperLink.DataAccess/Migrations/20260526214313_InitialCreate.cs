@@ -21,11 +21,13 @@ namespace WhisperLink.DataAccess.Migrations
                     Username = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     Email = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     PasswordHash = table.Column<string>(type: "text", nullable: false),
-                    FirstName = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
-                    LastName = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    DisplayName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Handle = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    JobRole = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    Bio = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     ProfilePictureUrl = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     Role = table.Column<int>(type: "integer", nullable: false),
-                    IsOnline = table.Column<bool>(type: "boolean", nullable: false),
+                    Presence = table.Column<int>(type: "integer", nullable: false, defaultValue: 3),
                     LastSeenAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
@@ -72,7 +74,7 @@ namespace WhisperLink.DataAccess.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     SenderId = table.Column<int>(type: "integer", nullable: false),
                     ReceiverId = table.Column<int>(type: "integer", nullable: false),
-                    Content = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    Content = table.Column<string>(type: "text", nullable: false),
                     Status = table.Column<int>(type: "integer", nullable: false),
                     ReadAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
@@ -102,7 +104,7 @@ namespace WhisperLink.DataAccess.Migrations
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     UserId = table.Column<int>(type: "integer", nullable: false),
-                    Token = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    Token = table.Column<string>(type: "text", nullable: false),
                     ExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     IsRevoked = table.Column<bool>(type: "boolean", nullable: false),
                     RevokedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -132,17 +134,6 @@ namespace WhisperLink.DataAccess.Migrations
                 column: "RequesterId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_friendships_RequesterId_AddresseeId",
-                table: "friendships",
-                columns: new[] { "RequesterId", "AddresseeId" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_messages_CreatedAt",
-                table: "messages",
-                column: "CreatedAt");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_messages_ReceiverId",
                 table: "messages",
                 column: "ReceiverId");
@@ -151,12 +142,6 @@ namespace WhisperLink.DataAccess.Migrations
                 name: "IX_messages_SenderId",
                 table: "messages",
                 column: "SenderId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_refresh_tokens_Token",
-                table: "refresh_tokens",
-                column: "Token",
-                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_refresh_tokens_UserId",

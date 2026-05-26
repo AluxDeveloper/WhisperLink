@@ -12,7 +12,7 @@ using WhisperLink.DataAccess.Context;
 namespace WhisperLink.DataAccess.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260507172416_InitialCreate")]
+    [Migration("20260526214313_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -54,9 +54,6 @@ namespace WhisperLink.DataAccess.Migrations
 
                     b.HasIndex("RequesterId");
 
-                    b.HasIndex("RequesterId", "AddresseeId")
-                        .IsUnique();
-
                     b.ToTable("friendships", (string)null);
                 });
 
@@ -70,8 +67,7 @@ namespace WhisperLink.DataAccess.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -92,8 +88,6 @@ namespace WhisperLink.DataAccess.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
 
                     b.HasIndex("ReceiverId");
 
@@ -127,8 +121,7 @@ namespace WhisperLink.DataAccess.Migrations
 
                     b.Property<string>("Token")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -137,9 +130,6 @@ namespace WhisperLink.DataAccess.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Token")
-                        .IsUnique();
 
                     b.HasIndex("UserId");
 
@@ -154,24 +144,31 @@ namespace WhisperLink.DataAccess.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Bio")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("FirstName")
+                    b.Property<string>("Handle")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<bool>("IsOnline")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("LastName")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                    b.Property<string>("JobRole")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime?>("LastSeenAt")
                         .HasColumnType("timestamp with time zone");
@@ -179,6 +176,11 @@ namespace WhisperLink.DataAccess.Migrations
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("Presence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(3);
 
                     b.Property<string>("ProfilePictureUrl")
                         .HasMaxLength(500)
