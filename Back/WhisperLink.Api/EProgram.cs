@@ -114,18 +114,14 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// CORS - permite frontend-ul (local + orice deployment Vercel)
+// CORS - permite orice origin pentru testare (FIXAT!)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(origin =>
-                origin.StartsWith("http://localhost") ||
-                origin.EndsWith(".vercel.app")
-              )
+        policy.AllowAnyOrigin()
               .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
+              .AllowAnyHeader();
     });
 });
 
