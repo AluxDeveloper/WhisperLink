@@ -8,7 +8,6 @@ using WhisperLink.Domain.Models.Friends;
 namespace WhisperLink.Api.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
     [Authorize]
     public class FriendController : ControllerBase
     {
@@ -19,50 +18,7 @@ namespace WhisperLink.Api.Controllers
             _friendExecution = friendExecution;
         }
 
-        // POST /api/Friend/request - trimite cerere de prietenie
-        [HttpPost("request")]
-        public async Task<IActionResult> SendFriendRequest([FromBody] SendFriendRequestDto requestDto)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int requesterId))
-                return Unauthorized(new { message = "Invalid token" });
-
-            var friendship = await _friendExecution.SendFriendRequestAsync(requesterId, requestDto);
-            if (friendship == null) return BadRequest(new { message = "Friend request already exists or failed" });
-
-            return CreatedAtAction(nameof(SendFriendRequest), new { id = friendship.Id }, friendship);
-        }
-
-        // PUT /api/Friend/10/accept - acceptă cererea
-        [HttpPut("{id}/accept")]
-        public async Task<IActionResult> AcceptFriendRequest(int id)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-                return Unauthorized(new { message = "Invalid token" });
-
-            var friendship = await _friendExecution.AcceptFriendRequestAsync(id, userId);
-            if (friendship == null) return BadRequest(new { message = "Failed to accept friend request" });
-
-            return Ok(friendship);
-        }
-
-        // PUT /api/Friend/10/reject - respinge cererea
-        [HttpPut("{id}/reject")]
-        public async Task<IActionResult> RejectFriendRequest(int id)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-                return Unauthorized(new { message = "Invalid token" });
-
-            var result = await _friendExecution.RejectFriendRequestAsync(id, userId);
-            if (!result) return BadRequest(new { message = "Failed to reject friend request" });
-
-            return Ok(new { message = "Friend request rejected" });
-        }
-
-        // GET /api/Friend - lista de prieteni
-        [HttpGet]
+        [HttpGet("api/friends")]
         public async Task<IActionResult> GetFriends()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -73,8 +29,7 @@ namespace WhisperLink.Api.Controllers
             return Ok(friends);
         }
 
-        // GET /api/Friend/pending - cereri în așteptare
-        [HttpGet("pending")]
+        [HttpGet("api/friends/pending")]
         public async Task<IActionResult> GetPendingRequests()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -85,22 +40,74 @@ namespace WhisperLink.Api.Controllers
             return Ok(requests);
         }
 
-        // DELETE /api/Friend/10 - elimină prietenia
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> RemoveFriend(int id)
+        [HttpDelete("api/friends/{friendUserId}")]
+        public async Task<IActionResult> RemoveFriend(int friendUserId)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
                 return Unauthorized(new { message = "Invalid token" });
 
-            var result = await _friendExecution.RemoveFriendAsync(id, userId);
+            var result = await _friendExecution.RemoveFriendByUserIdAsync(userId, friendUserId);
             if (!result) return BadRequest(new { message = "Failed to remove friend" });
 
             return Ok(new { message = "Friend removed successfully" });
         }
 
-        // POST /api/Friend/10/block - blochează utilizator
-        [HttpPost("{id}/block")]
+        [HttpPost("api/friend-requests")]
+        public async Task<IActionResult> SendFriendRequest([FromBody] SendFriendRequestFrontendDto requestDto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int requesterId))
+                return Unauthorized(new { message = "Invalid token" });
+
+            var dto = new SendFriendRequestDto { AddresseeId = requestDto.ToUserId };
+            var friendship = await _friendExecution.SendFriendRequestAsync(requesterId, dto);
+            if (friendship == null) return BadRequest(new { message = "Friend request already exists or failed" });
+
+            return CreatedAtAction(nameof(SendFriendRequest), new { id = friendship.Id }, new
+            {
+                id = friendship.Id.ToString(),
+                fromUserId = friendship.RequesterId.ToString(),
+                toUserId = friendship.AddresseeId.ToString(),
+                status = "pending",
+                createdAt = friendship.CreatedAt.ToString("o")
+            });
+        }
+
+        [HttpPatch("api/friend-requests/{id}/accept")]
+        public async Task<IActionResult> AcceptFriendRequest(int id)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid token" });
+
+            var friendship = await _friendExecution.AcceptFriendRequestAsync(id, userId);
+            if (friendship == null) return BadRequest(new { message = "Failed to accept friend request" });
+
+            return Ok(new
+            {
+                id = friendship.Id.ToString(),
+                fromUserId = friendship.RequesterId.ToString(),
+                toUserId = friendship.AddresseeId.ToString(),
+                status = "accepted",
+                createdAt = friendship.CreatedAt.ToString("o")
+            });
+        }
+
+        [HttpPatch("api/friend-requests/{id}/reject")]
+        public async Task<IActionResult> RejectFriendRequest(int id)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid token" });
+
+            var result = await _friendExecution.RejectFriendRequestAsync(id, userId);
+            if (!result) return BadRequest(new { message = "Failed to reject friend request" });
+
+            return Ok(new { message = "Friend request rejected", status = "rejected" });
+        }
+
+        [HttpPost("api/friend/{id}/block")]
         public async Task<IActionResult> BlockUser(int id)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -112,5 +119,10 @@ namespace WhisperLink.Api.Controllers
 
             return Ok(new { message = "User blocked successfully" });
         }
+    }
+
+    public class SendFriendRequestFrontendDto
+    {
+        public int ToUserId { get; set; }
     }
 }
