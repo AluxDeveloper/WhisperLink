@@ -1,6 +1,3 @@
-// ─── User API ─────────────────────────────────────────────────────────────────
-// Conectare cu: /api/users/me, /users/:id
-
 import { request } from './client'
 
 export interface UserProfileDto {
@@ -11,7 +8,7 @@ export interface UserProfileDto {
   bio?: string
   role?: string
   avatarUrl?: string
-  status: 'online' | 'away' | 'offline'
+  status: 'online' | 'focus' | 'away' | 'offline'
 }
 
 export interface UpdateProfilePayload {
@@ -19,18 +16,19 @@ export interface UpdateProfilePayload {
   handle?: string
   bio?: string
   role?: string
+  avatarUrl?: string
 }
 
 export const userApi = {
   getMe: (token: string) =>
-    request<UserProfileDto>('/User/me', { token }),
+    request<UserProfileDto>('/users/me', { token }),
 
   getUser: (userId: string, token: string) =>
-    request<UserProfileDto>(`/User/${userId}`, { token }),
+    request<UserProfileDto>(`/users/${userId}`, { token }),
 
   updateProfile: (data: UpdateProfilePayload, token: string) =>
-    request<UserProfileDto>('/User/me', { method: 'PUT', body: data, token }),
+    request<UserProfileDto>('/users/me', { method: 'PATCH', body: data, token }),
 
-  updateStatus: (status: 'online' | 'away' | 'offline', token: string) =>
-    request<void>('/User/me/status', { method: 'PUT', body: { status }, token }),
+  updateStatus: (status: 'online' | 'focus' | 'away' | 'offline', token: string) =>
+    request<void>('/users/me/status', { method: 'PATCH', body: { status }, token }),
 }
