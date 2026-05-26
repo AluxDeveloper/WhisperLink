@@ -2,7 +2,7 @@
 // Toate apelurile către backend trec prin acest fișier.
 // Schimbă BASE_URL când conectezi backend-ul real.
 
-const BASE_URL = 'https://whisperlink-production-9895.up.railway.app/api'
+const BASE_URL = 'http://localhost:5000/api'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
