@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using WhisperLink.BusinessLayer.Core.Executions;
@@ -8,7 +10,6 @@ using WhisperLink.Domain.Models.Messages;
 namespace WhisperLink.Api.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
     [Authorize]
     public class MessageController : ControllerBase
     {
@@ -19,22 +20,7 @@ namespace WhisperLink.Api.Controllers
             _messageExecution = messageExecution;
         }
 
-        // POST /api/Message - trimite mesaj nou
-        [HttpPost]
-        public async Task<IActionResult> SendMessage([FromBody] SendMessageDto sendMessageDto)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int senderId))
-                return Unauthorized(new { message = "Invalid token" });
-
-            var message = await _messageExecution.SendMessageAsync(senderId, sendMessageDto);
-            if (message == null) return BadRequest(new { message = "Failed to send message" });
-
-            return CreatedAtAction(nameof(SendMessage), new { id = message.Id }, message);
-        }
-
-        // GET /api/Message/conversations - lista de chat-uri
-        [HttpGet("conversations")]
+        [HttpGet("api/conversations")]
         public async Task<IActionResult> GetConversations()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -42,23 +28,92 @@ namespace WhisperLink.Api.Controllers
                 return Unauthorized(new { message = "Invalid token" });
 
             var conversations = await _messageExecution.GetConversationsAsync(userId);
-            return Ok(conversations);
+
+            var result = conversations.Select(c => new
+            {
+                id = c.User.Id.ToString(),
+                title = c.User.DisplayName,
+                lastMessage = c.LastMessage?.Content ?? "",
+                lastMessageTime = c.LastMessage?.CreatedAt.ToString("o") ?? "",
+                unreadCount = c.UnreadCount,
+                participantIds = new[] { c.User.Id.ToString() }
+            });
+
+            return Ok(result);
         }
 
-        // GET /api/Message/conversation/5 - mesajele cu un utilizator
-        [HttpGet("conversation/{otherUserId}")]
-        public async Task<IActionResult> GetConversationWithUser(int otherUserId)
+        [HttpGet("api/conversations/{conversationId}/messages")]
+        public async Task<IActionResult> GetMessages(int conversationId)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
                 return Unauthorized(new { message = "Invalid token" });
 
-            var messages = await _messageExecution.GetConversationWithUserAsync(userId, otherUserId);
-            return Ok(messages);
+            var messages = await _messageExecution.GetConversationWithUserAsync(userId, conversationId);
+
+            var result = messages.Select(m => new
+            {
+                id = m.Id.ToString(),
+                conversationId = conversationId.ToString(),
+                authorId = m.SenderId.ToString(),
+                text = m.Content,
+                createdAt = m.CreatedAt.ToString("o")
+            });
+
+            return Ok(result);
         }
 
-        // PUT /api/Message/123/read - marchează mesaj ca citit
-        [HttpPut("{id}/read")]
+        [HttpPost("api/messages")]
+        public async Task<IActionResult> SendMessage([FromBody] SendMessageFrontendDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int senderId))
+                return Unauthorized(new { message = "Invalid token" });
+
+            if (!int.TryParse(dto.ConversationId, out int receiverId))
+                return BadRequest(new { message = "Invalid conversationId" });
+
+            var message = await _messageExecution.SendMessageAsync(senderId, new SendMessageDto
+            {
+                ReceiverId = receiverId,
+                Content = dto.Text
+            });
+
+            if (message == null) return BadRequest(new { message = "Failed to send message" });
+
+            return CreatedAtAction(nameof(SendMessage), new { id = message.Id }, new
+            {
+                id = message.Id.ToString(),
+                conversationId = dto.ConversationId,
+                authorId = senderId.ToString(),
+                text = message.Content,
+                createdAt = message.CreatedAt.ToString("o")
+            });
+        }
+
+        [HttpPost("api/conversations")]
+        public IActionResult CreateConversation([FromBody] CreateConversationDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized(new { message = "Invalid token" });
+
+            if (dto.ParticipantIds == null || dto.ParticipantIds.Length == 0)
+                return BadRequest(new { message = "ParticipantIds required" });
+
+            var otherUserId = dto.ParticipantIds[0];
+            return Ok(new
+            {
+                id = otherUserId,
+                title = "",
+                lastMessage = "",
+                lastMessageTime = "",
+                unreadCount = 0,
+                participantIds = dto.ParticipantIds
+            });
+        }
+
+        [HttpPut("api/message/{id}/read")]
         public async Task<IActionResult> MarkMessageAsRead(int id)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -71,8 +126,7 @@ namespace WhisperLink.Api.Controllers
             return Ok(new { message = "Message marked as read" });
         }
 
-        // DELETE /api/Message/123 - șterge mesaj
-        [HttpDelete("{id}")]
+        [HttpDelete("api/message/{id}")]
         public async Task<IActionResult> DeleteMessage(int id)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -84,5 +138,16 @@ namespace WhisperLink.Api.Controllers
 
             return Ok(new { message = "Message deleted successfully" });
         }
+    }
+
+    public class SendMessageFrontendDto
+    {
+        public string ConversationId { get; set; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
+    }
+
+    public class CreateConversationDto
+    {
+        public string[] ParticipantIds { get; set; } = Array.Empty<string>();
     }
 }
