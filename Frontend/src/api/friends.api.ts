@@ -1,6 +1,3 @@
-// ─── Friends API ──────────────────────────────────────────────────────────────
-// Conectare cu: /api/friends, /friend-requests
-
 import { request } from './client'
 
 export interface FriendDto {
@@ -8,7 +5,8 @@ export interface FriendDto {
   name: string
   handle: string
   avatarUrl?: string
-  status: 'online' | 'away' | 'offline'
+  role?: string
+  status: 'online' | 'focus' | 'away' | 'offline'
 }
 
 export interface FriendRequestDto {
@@ -21,20 +19,30 @@ export interface FriendRequestDto {
 
 export const friendsApi = {
   getFriends: (token: string) =>
-    request<FriendDto[]>('/Friend', { token }),
+    request<FriendDto[]>('/friends', { token }),
 
   searchUsers: (query: string, token: string) =>
-    request<FriendDto[]>(`/User?search=${encodeURIComponent(query)}`, { token }),
+    request<FriendDto[]>(`/users/search?q=${encodeURIComponent(query)}`, { token }),
 
   sendRequest: (toUserId: string, token: string) =>
-    request<FriendRequestDto>('/Friend/request', { method: 'POST', body: { toUserId }, token }),
+    request<FriendRequestDto>('/friend-requests', {
+      method: 'POST',
+      body: { toUserId: parseInt(toUserId) },
+      token,
+    }),
 
   acceptRequest: (requestId: string, token: string) =>
-    request<FriendRequestDto>(`/Friend/${requestId}/accept`, { method: 'PUT', token }),
+    request<FriendRequestDto>(`/friend-requests/${requestId}/accept`, {
+      method: 'PATCH',
+      token,
+    }),
 
   rejectRequest: (requestId: string, token: string) =>
-    request<FriendRequestDto>(`/Friend/${requestId}/reject`, { method: 'PUT', token }),
+    request<FriendRequestDto>(`/friend-requests/${requestId}/reject`, {
+      method: 'PATCH',
+      token,
+    }),
 
   removeFriend: (friendId: string, token: string) =>
-    request<void>(`/Friend/${friendId}`, { method: 'DELETE', token }),
+    request<void>(`/friends/${friendId}`, { method: 'DELETE', token }),
 }
