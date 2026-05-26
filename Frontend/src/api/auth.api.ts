@@ -1,6 +1,3 @@
-// ─── Auth API ─────────────────────────────────────────────────────────────────
-// Conectare cu: POST /api/auth/login, /register, /logout, /refresh
-
 import { request } from './client'
 
 export interface LoginPayload {
@@ -16,6 +13,7 @@ export interface RegisterPayload {
 
 export interface AuthResponse {
   token: string
+  refreshToken: string
   user: {
     id: string
     name: string
@@ -27,14 +25,17 @@ export interface AuthResponse {
 
 export const authApi = {
   login: (data: LoginPayload) =>
-    request<AuthResponse>('/Auth/login', { method: 'POST', body: data }),
+    request<AuthResponse>('/auth/login', { method: 'POST', body: data }),
 
   register: (data: RegisterPayload) =>
-    request<AuthResponse>('/Auth/register', { method: 'POST', body: data }),
+    request<AuthResponse>('/auth/register', { method: 'POST', body: data }),
 
   logout: (token: string) =>
-    request<void>('/Auth/logout', { method: 'POST', token }),
+    request<void>('/auth/logout', { method: 'POST', token }),
 
-  refreshToken: (token: string) =>
-    request<{ token: string }>('/Auth/refresh-token', { method: 'POST', token }),
+  refreshToken: (refreshToken: string) =>
+    request<{ token: string }>('/auth/refresh', {
+      method: 'POST',
+      body: { refreshToken },
+    }),
 }
