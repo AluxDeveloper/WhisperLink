@@ -34,10 +34,7 @@ export function AddFriendView() {
       .then(setSuggestions)
       .catch(() => {})
 
-    fetch('http://localhost:8080/api/friends/pending', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.json())
+    friendsApi.getPendingRequests(token)
       .then(setPending)
       .catch(() => {})
   }, [])
