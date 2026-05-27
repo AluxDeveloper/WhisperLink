@@ -40,7 +40,10 @@ function ChatPageContent({ onBack }: ChatPageProps) {
               conversations={conversations}
               activeConversationId={activeConversation.id}
             />
-            <ChatWindow currentUser={currentUser} conversation={activeConversation} />
+            {activeConversation.id
+              ? <ChatWindow currentUser={currentUser} conversation={activeConversation} />
+              : <div className="chat-empty">Selectează o conversație pentru a începe</div>
+            }
           </>
         )}
 
