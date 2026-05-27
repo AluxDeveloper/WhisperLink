@@ -1,62 +1,67 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './AddFriendView.css'
+import { friendsApi } from '../../../api/friends.api'
+import type { FriendDto, FriendRequestDto } from '../../../api/friends.api'
 
-interface SuggestedUser {
-  id: string
-  name: string
-  handle: string
-  role: string
-  initials: string
-  accent: string
-  mutualFriends: number
+function getToken(): string {
+  return localStorage.getItem('token') ?? ''
 }
 
-interface PendingRequest {
-  id: string
-  name: string
-  handle: string
-  initials: string
-  accent: string
-  sentAt: string
+function getInitials(name: string): string {
+  return (name ?? '??').split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '??'
 }
 
-const SUGGESTIONS: SuggestedUser[] = [
-  { id: 's1', name: 'Cristian Popa',   handle: '@cristian.dev', role: 'Full-Stack Developer', initials: 'CP', accent: '#6366f1', mutualFriends: 4 },
-  { id: 's2', name: 'Ioana Marin',     handle: '@ioana.ux',    role: 'UX Researcher',       initials: 'IM', accent: '#ec4899', mutualFriends: 2 },
-  { id: 's3', name: 'Vlad Dumitru',    handle: '@vlad.arch',   role: 'Software Architect',  initials: 'VD', accent: '#0ea5e9', mutualFriends: 6 },
-  { id: 's4', name: 'Ana Constantin',  handle: '@ana.ml',      role: 'ML Engineer',         initials: 'AC', accent: '#10b981', mutualFriends: 1 },
-]
-
-const PENDING_REQUESTS: PendingRequest[] = [
-  { id: 'p1', name: 'Mihai Georgescu', handle: '@mihai.g', initials: 'MG', accent: '#f59e0b', sentAt: 'Ieri' },
-  { id: 'p2', name: 'Laura Stancu',    handle: '@laura.s', initials: 'LS', accent: '#8a2be2', sentAt: 'Acum 3 zile' },
-]
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return `${mins} min ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} hr ago`
+  return 'Ieri'
+}
 
 export function AddFriendView() {
   const [search, setSearch] = useState('')
+  const [suggestions, setSuggestions] = useState<FriendDto[]>([])
+  const [pending, setPending] = useState<FriendRequestDto[]>([])
   const [sent, setSent] = useState<Set<string>>(new Set())
 
-  const filtered = SUGGESTIONS.filter(
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+
+    friendsApi.searchUsers('', token)
+      .then(setSuggestions)
+      .catch(() => {})
+
+    fetch('http://localhost:8080/api/friends/pending', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(setPending)
+      .catch(() => {})
+  }, [])
+
+  const filtered = suggestions.filter(
     (u) =>
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.handle.toLowerCase().includes(search.toLowerCase()),
+      (u.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.handle ?? '').toLowerCase().includes(search.toLowerCase()),
   )
 
   function sendRequest(id: string) {
-    setSent((prev) => new Set(prev).add(id))
+    friendsApi.sendRequest(id, getToken())
+      .then(() => setSent(prev => new Set(prev).add(id)))
+      .catch(() => {})
   }
 
-  function cancelRequest(id: string) {
-    setSent((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
+  function cancelRequest(requestId: string) {
+    friendsApi.rejectRequest(requestId, getToken())
+      .then(() => setPending(prev => prev.filter(r => r.id !== requestId)))
+      .catch(() => {})
   }
 
   return (
     <div className="add-friend-view">
-      {/* Header */}
       <div className="view-header">
         <div className="view-header__icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -69,7 +74,6 @@ export function AddFriendView() {
         </div>
       </div>
 
-      {/* Search */}
       <div className="search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="search-bar__icon">
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -83,8 +87,7 @@ export function AddFriendView() {
         />
       </div>
 
-      {/* Pending requests */}
-      {PENDING_REQUESTS.length > 0 && (
+      {pending.length > 0 && (
         <section className="add-section">
           <h3 className="add-section__title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -93,21 +96,17 @@ export function AddFriendView() {
             Cereri trimise
           </h3>
           <div className="pending-list">
-            {PENDING_REQUESTS.map((req) => (
+            {pending.map((req) => (
               <div key={req.id} className="pending-card">
-                <div
-                  className="pending-card__avatar"
-                  style={{ background: req.accent }}
-                >
-                  {req.initials}
+                <div className="pending-card__avatar" style={{ background: 'linear-gradient(135deg, #8a2be2, #ff007f)' }}>
+                  {getInitials(req.toUserId)}
                 </div>
                 <div className="pending-card__info">
-                  <span className="pending-card__name">{req.name}</span>
-                  <span className="pending-card__handle">{req.handle}</span>
+                  <span className="pending-card__name">{req.toUserId}</span>
                 </div>
                 <div className="pending-card__right">
-                  <span className="pending-card__time">{req.sentAt}</span>
-                  <button className="pending-cancel-btn">Anulează</button>
+                  <span className="pending-card__time">{timeAgo(req.createdAt)}</span>
+                  <button className="pending-cancel-btn" onClick={() => cancelRequest(req.id)}>Anulează</button>
                 </div>
               </div>
             ))}
@@ -115,7 +114,6 @@ export function AddFriendView() {
         </section>
       )}
 
-      {/* Suggestions */}
       <section className="add-section">
         <h3 className="add-section__title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -129,23 +127,17 @@ export function AddFriendView() {
             const isSent = sent.has(user.id)
             return (
               <div key={user.id} className="suggestion-card">
-                <div
-                  className="suggestion-card__avatar"
-                  style={{ background: user.accent }}
-                >
-                  {user.initials}
+                <div className="suggestion-card__avatar" style={{ background: 'linear-gradient(135deg, #8a2be2, #ff007f)' }}>
+                  {getInitials(user.name)}
                 </div>
                 <div className="suggestion-card__info">
                   <span className="suggestion-card__name">{user.name}</span>
                   <span className="suggestion-card__handle">{user.handle}</span>
-                  <span className="suggestion-card__role">{user.role}</span>
-                  <span className="suggestion-card__mutual">
-                    {user.mutualFriends} prieteni comuni
-                  </span>
+                  <span className="suggestion-card__role">{user.role ?? ''}</span>
                 </div>
                 <button
                   className={`add-btn ${isSent ? 'add-btn--sent' : ''}`}
-                  onClick={() => (isSent ? cancelRequest(user.id) : sendRequest(user.id))}
+                  onClick={() => !isSent && sendRequest(user.id)}
                 >
                   {isSent ? (
                     <>
