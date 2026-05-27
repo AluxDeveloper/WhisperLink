@@ -81,29 +81,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       conversations: [],
       activeConversation: {
         ...mockChatWorkspace.activeConversation,
+        id: '',
+        title: '',
+        subtitle: '',
         messages: [],
         participants: [],
       },
     }
   })
 
-  // Încarcă conversațiile la mount
   useEffect(() => {
     const token = getToken()
     if (!token) return
 
     chatApi.getConversations(token).then(conversations => {
       const previews: ConversationPreview[] = conversations.map(conversationDtoToPreview)
-
       setWorkspace(prev => ({
         ...prev,
         conversations: previews,
       }))
-
-      // Dacă există conversații, încarcă mesajele primei conversații
-      if (conversations.length > 0) {
-        loadMessages(conversations[0].id, token, previews[0])
-      }
     }).catch(() => {})
   }, [])
 
@@ -111,7 +107,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     chatApi.getMessages(conversationId, token).then(messages => {
       const roomMessages: RoomMessage[] = messages.map(messageDtoToRoomMessage)
 
-      // Construiește participants din currentUser + otherUser
       const stored = getStoredUser()
       const currentUserChat: ChatUser = stored ? backendUserToChatUser(stored) : mockChatWorkspace.currentUser
 
@@ -143,7 +138,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }).catch(() => {})
   }
 
-  return <ChatContext.Provider value={workspace}>{children}</ChatContext.Provider>
+  return (
+    <ChatContext.Provider value={workspace}>
+      {children}
+    </ChatContext.Provider>
+  )
 }
 
 export function useChatStore(): ChatWorkspaceModel {
