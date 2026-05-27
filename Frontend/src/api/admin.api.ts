@@ -1,6 +1,4 @@
 // ─── Admin API ────────────────────────────────────────────────────────────────
-// Endpoints pentru Admin dashboard
-
 import { request } from './client'
 
 export interface AdminStats {
@@ -15,27 +13,24 @@ export interface AdminUserDto {
   id: number
   username: string
   email: string
-  firstName?: string
-  lastName?: string
+  displayName?: string
+  handle?: string
+  jobRole?: string
   role: string
-  isOnline: boolean
+  presence: string
   createdAt: string
 }
 
 export const adminApi = {
-  // Statistici publice
   getStats: () =>
-    request<AdminStats>('/Auth/stats'),
+    request<AdminStats>('/auth/stats'),
 
-  // Lista tuturor userilor (doar Admin)
   getAllUsers: (token: string) =>
-    request<AdminUserDto[]>('/User', { token }),
+    request<AdminUserDto[]>('/users', { token }),
 
-  // Editează orice user (doar Admin)
   updateUser: (userId: number, data: any, token: string) =>
-    request<AdminUserDto>(`/User/${userId}`, { method: 'PUT', body: data, token }),
+    request<AdminUserDto>(`/users/${userId}`, { method: 'PUT', body: data, token }),
 
-  // Șterge orice user (doar Admin)
   deleteUser: (userId: number, token: string) =>
-    request<void>(`/User/${userId}`, { method: 'DELETE', token }),
+    request<void>(`/users/${userId}`, { method: 'DELETE', token }),
 }
