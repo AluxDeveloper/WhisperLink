@@ -45,4 +45,7 @@ export const friendsApi = {
 
   removeFriend: (friendId: string, token: string) =>
     request<void>(`/friends/${friendId}`, { method: 'DELETE', token }),
+
+  getPendingRequests: (token: string) =>
+  request<FriendRequestDto[]>('/friends/pending', { token }),
 }
