@@ -50,15 +50,7 @@ export function NotificationsView() {
     const token = getToken()
     if (!token) return
 
-    friendsApi.getFriends(token)
-      .then(() => {})
-      .catch(() => {})
-
-    // Încarcă cererile de prietenie în așteptare
-    fetch('http://localhost:8080/api/friends/pending', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.json())
+    friendsApi.getPendingRequests(token)
       .then((requests: FriendRequestDto[]) => {
         const notifs: Notification[] = requests.map(r => ({
           id: `req-${r.id}`,
