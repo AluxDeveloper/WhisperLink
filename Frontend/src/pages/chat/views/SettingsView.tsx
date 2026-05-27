@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import './SettingsView.css'
+import { userApi } from '../../../api/user.api'
 
 interface Toggle {
   id: string
@@ -9,17 +10,30 @@ interface Toggle {
   on: boolean
 }
 
+function getToken(): string {
+  return localStorage.getItem('token') ?? ''
+}
+
+function getStoredUser() {
+  try {
+    const raw = localStorage.getItem('user')
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
 export function SettingsView() {
   const [activeSection, setActiveSection] = useState('profile')
 
   const [toggles, setToggles] = useState<Toggle[]>([
-    { id: 'notif-msg',     label: 'Message notifications',  description: 'Get alerted for new messages',        on: true  },
+    { id: 'notif-msg',     label: 'Message notifications',  description: 'Get alerted for new messages',          on: true  },
     { id: 'notif-mention', label: 'Mention notifications',  description: 'Get alerted when someone mentions you', on: true  },
-    { id: 'notif-request', label: 'Friend requests',        description: 'Get alerted for new friend requests',  on: true  },
-    { id: 'notif-sound',   label: 'Notification sounds',    description: 'Play sounds for alerts',              on: false },
-    { id: 'priv-online',   label: 'Show online status',     description: 'Others can see when you\'re online',   on: true  },
-    { id: 'priv-read',     label: 'Read receipts',          description: 'Show when you\'ve read messages',     on: true  },
-    { id: 'priv-profile',  label: 'Public profile',         description: 'Anyone can search and find you',     on: false },
+    { id: 'notif-request', label: 'Friend requests',        description: 'Get alerted for new friend requests',   on: true  },
+    { id: 'notif-sound',   label: 'Notification sounds',    description: 'Play sounds for alerts',                on: false },
+    { id: 'priv-online',   label: 'Show online status',     description: "Others can see when you're online",     on: true  },
+    { id: 'priv-read',     label: 'Read receipts',          description: "Show when you've read messages",        on: true  },
+    { id: 'priv-profile',  label: 'Public profile',         description: 'Anyone can search and find you',        on: false },
   ])
 
   const flip = (id: string) =>
@@ -64,7 +78,7 @@ export function SettingsView() {
       </div>
 
       <div className="settings-content">
-        {activeSection === 'profile' && <ProfileSection />}
+        {activeSection === 'profile'       && <ProfileSection />}
         {activeSection === 'notifications' && (
           <ToggleSection
             title="Notifications"
@@ -112,36 +126,73 @@ function SectionIcon({ id }: { id: string }) {
 }
 
 function ProfileSection() {
+  const stored = getStoredUser()
+  const [name, setName] = useState(stored?.name ?? '')
+  const [handle, setHandle] = useState(stored?.handle ?? '')
+  const [role, setRole] = useState(stored?.role ?? '')
+  const [email, setEmail] = useState(stored?.email ?? '')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    userApi.getMe(token).then(user => {
+      setName(user.name ?? '')
+      setHandle(user.handle ?? '')
+      setRole(user.role ?? '')
+      setEmail(user.email ?? '')
+    }).catch(() => {})
+  }, [])
+
+  function handleSave() {
+    const token = getToken()
+    if (!token) return
+    userApi.updateProfile({ name, handle, role }, token)
+      .then(updated => {
+        const current = getStoredUser()
+        localStorage.setItem('user', JSON.stringify({ ...current, ...updated }))
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      })
+      .catch(() => {})
+  }
+
+  const initials = name
+  ? name.split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2)
+  : '??'
+
   return (
     <div className="settings-panel">
       <h3 className="panel-title">Profile</h3>
       <div className="profile-preview">
-        <div className="profile-preview__avatar">AM</div>
+        <div className="profile-preview__avatar">{initials}</div>
         <div className="profile-preview__info">
-          <span className="profile-preview__name">Adrian Munteanu</span>
-          <span className="profile-preview__handle">@adrian.ui</span>
+          <span className="profile-preview__name">{name}</span>
+          <span className="profile-preview__handle">{handle}</span>
         </div>
         <button className="change-avatar-btn">Change Avatar</button>
       </div>
       <div className="settings-fields">
         <div className="field">
           <label className="field__label">Display Name</label>
-          <input className="field__input" defaultValue="Adrian Munteanu" />
+          <input className="field__input" value={name} onChange={e => setName(e.target.value)} />
         </div>
         <div className="field">
           <label className="field__label">Handle</label>
-          <input className="field__input" defaultValue="@adrian.ui" />
+          <input className="field__input" value={handle} onChange={e => setHandle(e.target.value)} />
         </div>
         <div className="field">
           <label className="field__label">Role</label>
-          <input className="field__input" defaultValue="Product Designer" />
+          <input className="field__input" value={role} onChange={e => setRole(e.target.value)} />
         </div>
         <div className="field">
           <label className="field__label">Email</label>
-          <input className="field__input" type="email" defaultValue="adrian@whisperlink.app" />
+          <input className="field__input" type="email" value={email} disabled />
         </div>
       </div>
-      <button className="save-btn">Save Changes</button>
+      <button className="save-btn" onClick={handleSave}>
+        {saved ? 'Saved!' : 'Save Changes'}
+      </button>
     </div>
   )
 }
@@ -181,7 +232,7 @@ function ToggleSection({
 
 function AppearanceSection() {
   const THEMES = [
-    { id: 'purple-pulse', label: 'Purple Pulse', active: true },
+    { id: 'purple-pulse', label: 'Purple Pulse', active: true  },
     { id: 'ocean-dark',   label: 'Ocean Dark',   active: false },
     { id: 'midnight',     label: 'Midnight',     active: false },
   ]
