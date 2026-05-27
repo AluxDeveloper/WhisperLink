@@ -1,19 +1,42 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './ProfileView.css'
+import { userApi } from '../../../api/user.api'
+
+function getToken(): string {
+  return localStorage.getItem('token') ?? ''
+}
 
 export function ProfileView() {
   const [editing, setEditing] = useState(false)
-  const [name, setName]       = useState('Adrian Munteanu')
-  const [handle, setHandle]   = useState('@adrian.ui')
-  const [role, setRole]       = useState('Product Designer')
-  const [bio, setBio]         = useState('Pasionat de design sistemic și experiențe digitale curate. Construiesc interfețe care contează.')
-  const [email, setEmail]     = useState('adrian@whisperlink.app')
+  const [name, setName]     = useState('')
+  const [handle, setHandle] = useState('')
+  const [role, setRole]     = useState('')
+  const [bio, setBio]       = useState('')
+  const [email, setEmail]   = useState('')
 
-  const STATS = [
-    { label: 'Prieteni',    value: '142' },
-    { label: 'Conversații', value: '38'  },
-    { label: 'Mesaje',      value: '1.2k' },
-  ]
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    userApi.getMe(token).then(user => {
+      setName(user.name ?? '')
+      setHandle(user.handle ?? '')
+      setRole(user.role ?? '')
+      setBio('')
+      setEmail(user.email ?? '')
+    }).catch(() => {})
+  }, [])
+
+  function handleSave() {
+    const token = getToken()
+    if (!token) return
+    userApi.updateProfile({ name, handle, role, bio }, token)
+      .then(() => setEditing(false))
+      .catch(() => {})
+  }
+
+  const initials = name
+    ? name.split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2)
+    : '??'
 
   const ACTIVITY = [
     { id: 'a1', text: 'Ai trimis o cerere de prietenie lui Vlad Dumitru', time: 'Acum 2 ore' },
@@ -24,42 +47,27 @@ export function ProfileView() {
 
   return (
     <div className="profile-view">
-      {/* Hero */}
       <div className="profile-hero">
         <div className="profile-hero__cover" />
         <div className="profile-hero__body">
           <div className="profile-avatar-wrap">
-            <div className="profile-avatar">AM</div>
+            <div className="profile-avatar">{initials}</div>
             <span className="profile-status-dot" />
           </div>
 
           <div className="profile-hero__info">
             {editing ? (
-              <input
-                className="profile-edit-input profile-edit-input--name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+              <input className="profile-edit-input profile-edit-input--name" value={name} onChange={(e) => setName(e.target.value)} />
             ) : (
               <h2 className="profile-name">{name}</h2>
             )}
-
             {editing ? (
-              <input
-                className="profile-edit-input profile-edit-input--handle"
-                value={handle}
-                onChange={(e) => setHandle(e.target.value)}
-              />
+              <input className="profile-edit-input profile-edit-input--handle" value={handle} onChange={(e) => setHandle(e.target.value)} />
             ) : (
               <span className="profile-handle">{handle}</span>
             )}
-
             {editing ? (
-              <input
-                className="profile-edit-input profile-edit-input--role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              />
+              <input className="profile-edit-input profile-edit-input--role" value={role} onChange={(e) => setRole(e.target.value)} />
             ) : (
               <span className="profile-role">{role}</span>
             )}
@@ -67,7 +75,7 @@ export function ProfileView() {
 
           <button
             className={`profile-edit-btn ${editing ? 'profile-edit-btn--save' : ''}`}
-            onClick={() => setEditing((v) => !v)}
+            onClick={() => editing ? handleSave() : setEditing(true)}
           >
             {editing ? (
               <>
@@ -88,9 +96,12 @@ export function ProfileView() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="profile-stats">
-        {STATS.map((s) => (
+        {[
+          { label: 'Prieteni',    value: '—' },
+          { label: 'Conversații', value: '—' },
+          { label: 'Mesaje',      value: '—' },
+        ].map((s) => (
           <div key={s.label} className="profile-stat">
             <span className="profile-stat__value">{s.value}</span>
             <span className="profile-stat__label">{s.label}</span>
@@ -99,22 +110,15 @@ export function ProfileView() {
       </div>
 
       <div className="profile-content">
-        {/* Bio */}
         <section className="profile-section">
           <h3 className="profile-section__title">Despre mine</h3>
           {editing ? (
-            <textarea
-              className="profile-edit-textarea"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              rows={3}
-            />
+            <textarea className="profile-edit-textarea" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} />
           ) : (
-            <p className="profile-bio">{bio}</p>
+            <p className="profile-bio">{bio || 'Nicio descriere.'}</p>
           )}
         </section>
 
-        {/* Contact */}
         <section className="profile-section">
           <h3 className="profile-section__title">Contact</h3>
           <div className="profile-contact-list">
@@ -124,18 +128,8 @@ export function ProfileView() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </span>
-              {editing ? (
-                <input
-                  className="profile-edit-input"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  type="email"
-                />
-              ) : (
-                <span className="contact-row__value">{email}</span>
-              )}
+              <span className="contact-row__value">{email}</span>
             </div>
-
             <div className="contact-row">
               <span className="contact-row__icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -148,7 +142,6 @@ export function ProfileView() {
           </div>
         </section>
 
-        {/* Activity */}
         <section className="profile-section">
           <h3 className="profile-section__title">Activitate recentă</h3>
           <div className="activity-list">
