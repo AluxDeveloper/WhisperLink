@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using WhisperLink.BusinessLayer.Core.Executions;
@@ -31,15 +32,45 @@ namespace WhisperLink.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllUsers([FromQuery] string? search = null)
         {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            int.TryParse(userIdClaim, out int currentUserId);
+
             var users = await _userExecution.GetAllUsersAsync(search);
-            return Ok(users);
+            var result = users
+                .Where(u => u.Id != currentUserId)
+                .Select(u => new
+                {
+                    id = u.Id.ToString(),
+                    name = u.DisplayName,
+                    handle = u.Handle,
+                    email = u.Email,
+                    role = u.JobRole,
+                    avatarUrl = u.ProfilePictureUrl,
+                    status = u.Presence
+                });
+            return Ok(result);
         }
 
         [HttpGet("search")]
         public async Task<IActionResult> SearchUsers([FromQuery] string? q = null)
         {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            int.TryParse(userIdClaim, out int currentUserId);
+
             var users = await _userExecution.GetAllUsersAsync(q);
-            return Ok(users);
+            var result = users
+                .Where(u => u.Id != currentUserId)
+                .Select(u => new
+                {
+                    id = u.Id.ToString(),
+                    name = u.DisplayName,
+                    handle = u.Handle,
+                    email = u.Email,
+                    role = u.JobRole,
+                    avatarUrl = u.ProfilePictureUrl,
+                    status = u.Presence
+                });
+            return Ok(result);
         }
 
         [HttpGet("me")]
