@@ -8,7 +8,6 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // TODO: Get token from auth context/localStorage
   const token = localStorage.getItem('token') || ''
 
   useEffect(() => {
@@ -33,7 +32,6 @@ export function AdminDashboard() {
 
   const handleDeleteUser = async (userId: number, username: string) => {
     if (!confirm(`Are you sure you want to delete user "${username}"?`)) return
-
     try {
       await adminApi.deleteUser(userId, token)
       setUsers(users.filter(u => u.id !== userId))
@@ -45,8 +43,9 @@ export function AdminDashboard() {
   }
 
   const filteredUsers = users.filter(u =>
-    u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (u.username ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (u.email ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (u.displayName ?? '').toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   if (loading) {
@@ -60,7 +59,6 @@ export function AdminDashboard() {
         <p className="admin-subtitle">Manage users and view statistics</p>
       </div>
 
-      {/* Statistici */}
       {stats && (
         <div className="admin-stats">
           <div className="stat-card">
@@ -82,7 +80,6 @@ export function AdminDashboard() {
         </div>
       )}
 
-      {/* User Management */}
       <div className="admin-section">
         <div className="section-header">
           <h2>User Management</h2>
@@ -114,19 +111,19 @@ export function AdminDashboard() {
                 <tr key={user.id}>
                   <td>{user.id}</td>
                   <td className="username-cell">
-                    <span className={`status-dot ${user.isOnline ? 'online' : 'offline'}`} />
+                    <span className={`status-dot ${user.presence === 'online' ? 'online' : 'offline'}`} />
                     {user.username}
                   </td>
                   <td>{user.email}</td>
-                  <td>{user.firstName || user.lastName ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '-'}</td>
+                  <td>{user.displayName ?? '-'}</td>
                   <td>
-                    <span className={`role-badge role-${user.role.toLowerCase()}`}>
-                      {user.role}
+                    <span className={`role-badge role-${(user.role ?? 'user').toLowerCase()}`}>
+                      {user.role ?? 'User'}
                     </span>
                   </td>
                   <td>
-                    <span className={`status-badge ${user.isOnline ? 'online' : 'offline'}`}>
-                      {user.isOnline ? 'Online' : 'Offline'}
+                    <span className={`status-badge ${user.presence === 'online' ? 'online' : 'offline'}`}>
+                      {user.presence === 'online' ? 'Online' : 'Offline'}
                     </span>
                   </td>
                   <td>{new Date(user.createdAt).toLocaleDateString()}</td>
