@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import type { ChatWorkspaceModel, ChatUser, ConversationPreview } from '../types'
+import type { ChatWorkspaceModel, ChatUser, ConversationPreview, ActiveConversation, RoomMessage } from '../types'
 import { chatApi } from '../api/chat.api'
-import type { ConversationDto } from '../api/chat.api'
+import type { ConversationDto, MessageDto } from '../api/chat.api'
 import { mockChatWorkspace } from '../mock/chat.mock'
 
 const ChatContext = createContext<ChatWorkspaceModel | null>(null)
@@ -51,12 +51,23 @@ function conversationDtoToPreview(dto: ConversationDto): ConversationPreview {
     section: 'Conversații',
     title: dto.title,
     message: dto.lastMessage,
-    time: dto.lastMessageTime,
+    time: dto.lastMessageTime
+      ? new Date(dto.lastMessageTime).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
+      : '',
     tag: '',
     unreadCount: dto.unreadCount,
     avatarText: dto.title ? dto.title.slice(0, 2).toUpperCase() : '??',
     accent: 'linear-gradient(135deg, #8a2be2, #ff007f)',
     presence: 'offline',
+  }
+}
+
+function messageDtoToRoomMessage(dto: MessageDto): RoomMessage {
+  return {
+    id: dto.id,
+    authorId: dto.authorId,
+    text: dto.text,
+    time: new Date(dto.createdAt).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
   }
 }
 
@@ -68,24 +79,69 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       ...mockChatWorkspace,
       currentUser: backendUserToChatUser(stored),
       conversations: [],
+      activeConversation: {
+        ...mockChatWorkspace.activeConversation,
+        messages: [],
+        participants: [],
+      },
     }
   })
 
+  // Încarcă conversațiile la mount
   useEffect(() => {
     const token = getToken()
     if (!token) return
 
     chatApi.getConversations(token).then(conversations => {
       const previews: ConversationPreview[] = conversations.map(conversationDtoToPreview)
+
       setWorkspace(prev => ({
         ...prev,
         conversations: previews,
-        activeConversation: previews.length > 0
-          ? { ...prev.activeConversation, id: previews[0].id, title: previews[0].title, messages: [] }
-          : prev.activeConversation,
       }))
+
+      // Dacă există conversații, încarcă mesajele primei conversații
+      if (conversations.length > 0) {
+        loadMessages(conversations[0].id, token, previews[0])
+      }
     }).catch(() => {})
   }, [])
+
+  function loadMessages(conversationId: string, token: string, preview: ConversationPreview) {
+    chatApi.getMessages(conversationId, token).then(messages => {
+      const roomMessages: RoomMessage[] = messages.map(messageDtoToRoomMessage)
+
+      // Construiește participants din currentUser + otherUser
+      const stored = getStoredUser()
+      const currentUserChat: ChatUser = stored ? backendUserToChatUser(stored) : mockChatWorkspace.currentUser
+
+      const otherUser: ChatUser = {
+        id: conversationId,
+        name: preview.title,
+        handle: '',
+        role: '',
+        email: '',
+        presence: preview.presence,
+        avatarText: preview.avatarText,
+        accent: preview.accent,
+      }
+
+      const activeConv: ActiveConversation = {
+        ...mockChatWorkspace.activeConversation,
+        id: conversationId,
+        title: preview.title,
+        subtitle: preview.presence === 'online' ? 'Online' : 'Offline',
+        messages: roomMessages,
+        participants: [otherUser, currentUserChat],
+        composerHint: 'Scrie un mesaj... (Enter pentru trimite)',
+      }
+
+      setWorkspace(prev => ({
+        ...prev,
+        activeConversation: activeConv,
+      }))
+    }).catch(() => {})
+  }
 
   return <ChatContext.Provider value={workspace}>{children}</ChatContext.Provider>
 }
