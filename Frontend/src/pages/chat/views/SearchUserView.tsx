@@ -1,33 +1,41 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './SearchUserView.css'
+import { friendsApi } from '../../../api/friends.api'
+import type { FriendDto } from '../../../api/friends.api'
 
-const ALL_USERS = [
-  { id: 'u1', name: 'Mara Popa',       role: 'Senior UI Designer',  initials: 'MP', status: 'online' as const },
-  { id: 'u2', name: 'Radu Toma',       role: 'Frontend Engineer',   initials: 'RT', status: 'focus'  as const },
-  { id: 'u3', name: 'Bianca Luca',     role: 'Product Manager',     initials: 'BL', status: 'away'   as const },
-  { id: 'u4', name: 'Sergiu Botezatu', role: 'Backend Developer',   initials: 'SB', status: 'online' as const },
-  { id: 'u5', name: 'Elena Ionescu',   role: 'QA Engineer',         initials: 'EI', status: 'offline' as const },
-  { id: 'u6', name: 'Victor Ciobanu',  role: 'DevOps Engineer',     initials: 'VC', status: 'online' as const },
-  { id: 'u7', name: 'Ioana Dascalu',   role: 'UI/UX Designer',      initials: 'ID', status: 'focus'  as const },
-]
+function getToken(): string {
+  return localStorage.getItem('token') ?? ''
+}
 
-const STATUS_LABELS = {
-  online: 'Online',
-  focus:  'Focus mode',
-  away:   'Away',
+const STATUS_LABELS: Record<string, string> = {
+  online:  'Online',
+  focus:   'Focus mode',
+  away:    'Away',
   offline: 'Offline',
 }
 
 export function SearchUserView() {
   const [query, setQuery] = useState('')
+  const [users, setUsers] = useState<FriendDto[]>([])
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    friendsApi.searchUsers('', token)
+      .then(setUsers)
+      .catch(() => {})
+  }, [])
 
   const results = query.trim()
-    ? ALL_USERS.filter(
+    ? users.filter(
         (u) =>
-          u.name.toLowerCase().includes(query.toLowerCase()) ||
-          u.role.toLowerCase().includes(query.toLowerCase()),
+          (u.name ?? '').toLowerCase().includes(query.toLowerCase()) ||
+          (u.role ?? '').toLowerCase().includes(query.toLowerCase()),
       )
-    : ALL_USERS
+    : users
+
+  const getInitials = (name?: string) =>
+    (name ?? '??').split(' ').map(w => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '??'
 
   return (
     <div className="search-view">
@@ -74,16 +82,16 @@ export function SearchUserView() {
         {results.map((user) => (
           <div key={user.id} className="user-card">
             <div className="user-card__avatar-wrap">
-              <div className="user-card__avatar">{user.initials}</div>
-              <span className={`user-card__dot user-card__dot--${user.status}`} />
+              <div className="user-card__avatar">{getInitials(user.name)}</div>
+              <span className={`user-card__dot user-card__dot--${user.status ?? 'offline'}`} />
             </div>
             <div className="user-card__info">
-              <span className="user-card__name">{user.name}</span>
-              <span className="user-card__role">{user.role}</span>
-              <span className="user-card__status">{STATUS_LABELS[user.status]}</span>
+              <span className="user-card__name">{user.name ?? ''}</span>
+              <span className="user-card__role">{user.role ?? ''}</span>
+              <span className="user-card__status">{STATUS_LABELS[user.status ?? 'offline'] ?? 'Offline'}</span>
             </div>
             <div className="user-card__actions">
-              <button className="card-btn card-btn--ghost">
+              <button className="card-btn card-btn--ghost" onClick={() => friendsApi.sendRequest(user.id, getToken()).catch(() => {})}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
