@@ -1,49 +1,52 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './FriendsView.css'
+import { friendsApi } from '../../../api/friends.api'
+import type { FriendDto } from '../../../api/friends.api'
 
-type FriendStatus = 'online' | 'away' | 'offline'
+type FriendStatus = 'online' | 'focus' | 'away' | 'offline'
 
-interface Friend {
-  id: string
-  name: string
-  handle: string
-  role: string
-  initials: string
-  accent: string
-  status: FriendStatus
-  mutualFriends: number
+const STATUS_ORDER: Record<string, number> = { online: 0, focus: 1, away: 2, offline: 3 }
+
+function getToken(): string {
+  return localStorage.getItem('token') ?? ''
 }
 
-const FRIENDS: Friend[] = [
-  { id: 'f1', name: 'Mara Popa',       handle: '@mara.ui',    role: 'Senior UI Designer',  initials: 'MP', accent: '#8a2be2', status: 'online',  mutualFriends: 5 },
-  { id: 'f2', name: 'Radu Toma',       handle: '@radu.dev',   role: 'Frontend Engineer',   initials: 'RT', accent: '#0ea5e9', status: 'online',  mutualFriends: 3 },
-  { id: 'f3', name: 'Bianca Luca',     handle: '@bianca.pm',  role: 'Product Manager',     initials: 'BL', accent: '#10b981', status: 'away',    mutualFriends: 8 },
-  { id: 'f4', name: 'Sergiu Botezatu', handle: '@sergiu.be',  role: 'Backend Developer',   initials: 'SB', accent: '#f59e0b', status: 'offline', mutualFriends: 2 },
-  { id: 'f5', name: 'Elena Ionescu',   handle: '@elena.qa',   role: 'QA Engineer',         initials: 'EI', accent: '#ec4899', status: 'offline', mutualFriends: 4 },
-  { id: 'f6', name: 'Andrei Vlad',     handle: '@andrei.ds',  role: 'Data Scientist',      initials: 'AV', accent: '#6366f1', status: 'online',  mutualFriends: 1 },
-]
+function getInitials(name: string): string {
+  return (name ?? '??').split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '??'
+}
 
-const STATUS_ORDER: Record<FriendStatus, number> = { online: 0, away: 1, offline: 2 }
+function getStatusLabel(status: string): string {
+  const labels: Record<string, string> = { online: 'Online', focus: 'Focus', away: 'Plecat', offline: 'Offline' }
+  return labels[status] ?? 'Offline'
+}
 
 export function FriendsView() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'online'>('all')
+  const [friends, setFriends] = useState<FriendDto[]>([])
 
-  const visible = FRIENDS
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    friendsApi.getFriends(token)
+      .then(setFriends)
+      .catch(() => {})
+  }, [])
+
+  const visible = friends
     .filter((f) => {
       const matchSearch =
-        f.name.toLowerCase().includes(search.toLowerCase()) ||
-        f.handle.toLowerCase().includes(search.toLowerCase())
+        (f.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+        (f.handle ?? '').toLowerCase().includes(search.toLowerCase())
       const matchFilter = filter === 'all' || f.status === 'online'
       return matchSearch && matchFilter
     })
-    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
+    .sort((a, b) => (STATUS_ORDER[a.status ?? 'offline'] ?? 3) - (STATUS_ORDER[b.status ?? 'offline'] ?? 3))
 
-  const onlineCount = FRIENDS.filter((f) => f.status === 'online').length
+  const onlineCount = friends.filter((f) => f.status === 'online').length
 
   return (
     <div className="friends-view">
-      {/* Header */}
       <div className="view-header">
         <div className="view-header__icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -52,18 +55,17 @@ export function FriendsView() {
         </div>
         <div>
           <h2 className="view-header__title">Prieteni</h2>
-          <p className="view-header__sub">{FRIENDS.length} prieteni · {onlineCount} online</p>
+          <p className="view-header__sub">{friends.length} prieteni · {onlineCount} online</p>
         </div>
       </div>
 
-      {/* Filters */}
       <div className="friends-controls">
         <div className="friends-filter">
           <button
             className={`filter-tab ${filter === 'all' ? 'filter-tab--active' : ''}`}
             onClick={() => setFilter('all')}
           >
-            Toți ({FRIENDS.length})
+            Toți ({friends.length})
           </button>
           <button
             className={`filter-tab ${filter === 'online' ? 'filter-tab--active' : ''}`}
@@ -88,7 +90,6 @@ export function FriendsView() {
         </div>
       </div>
 
-      {/* Friends list */}
       <div className="friends-list">
         {visible.length === 0 && (
           <div className="empty-state">
@@ -102,25 +103,21 @@ export function FriendsView() {
         {visible.map((friend) => (
           <div key={friend.id} className="friend-card">
             <div className="friend-card__avatar-wrap">
-              <div
-                className="friend-card__avatar"
-                style={{ background: friend.accent }}
-              >
-                {friend.initials}
+              <div className="friend-card__avatar" style={{ background: 'linear-gradient(135deg, #8a2be2, #ff007f)' }}>
+                {getInitials(friend.name)}
               </div>
-              <span className={`presence-dot presence-dot--${friend.status}`} />
+              <span className={`presence-dot presence-dot--${friend.status ?? 'offline'}`} />
             </div>
 
             <div className="friend-card__info">
               <span className="friend-card__name">{friend.name}</span>
               <span className="friend-card__handle">{friend.handle}</span>
-              <span className="friend-card__role">{friend.role}</span>
+              <span className="friend-card__role">{friend.role ?? ''}</span>
             </div>
 
             <div className="friend-card__meta">
-              <span className="friend-card__mutual">{friend.mutualFriends} comuni</span>
-              <span className={`status-badge status-badge--${friend.status}`}>
-                {friend.status === 'online' ? 'Online' : friend.status === 'away' ? 'Plecat' : 'Offline'}
+              <span className={`status-badge status-badge--${friend.status ?? 'offline'}`}>
+                {getStatusLabel(friend.status ?? 'offline')}
               </span>
             </div>
 
