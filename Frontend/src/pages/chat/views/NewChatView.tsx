@@ -1,20 +1,30 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './NewChatView.css'
+import { friendsApi } from '../../../api/friends.api'
+import type { FriendDto } from '../../../api/friends.api'
 
-const SUGGESTED_USERS = [
-  { id: 'u1', name: 'Mara Popa',       role: 'Senior UI Designer',  initials: 'MP' },
-  { id: 'u2', name: 'Radu Toma',       role: 'Frontend Engineer',   initials: 'RT' },
-  { id: 'u3', name: 'Bianca Luca',     role: 'Product Manager',     initials: 'BL' },
-  { id: 'u4', name: 'Sergiu Botezatu', role: 'Backend Developer',   initials: 'SB' },
-  { id: 'u5', name: 'Elena Ionescu',   role: 'QA Engineer',         initials: 'EI' },
-]
+function getToken(): string {
+  return localStorage.getItem('token') ?? ''
+}
 
 export function NewChatView() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<string[]>([])
+  const [users, setUsers] = useState<FriendDto[]>([])
 
-  const filtered = SUGGESTED_USERS.filter((u) =>
-    u.name.toLowerCase().includes(search.toLowerCase()),
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    friendsApi.searchUsers('', token)
+      .then(data => {
+        console.log('users from backend:', JSON.stringify(data))
+        setUsers(data)
+      })
+      .catch((err) => console.log('error:', err))
+  }, [])
+
+  const filtered = users.filter((u) =>
+    (u.name ?? '').toLowerCase().includes(search.toLowerCase()),
   )
 
   const toggle = (id: string) =>
@@ -22,7 +32,10 @@ export function NewChatView() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
 
-  const selectedUsers = SUGGESTED_USERS.filter((u) => selected.includes(u.id))
+  const selectedUsers = users.filter((u) => selected.includes(u.id))
+
+  const getInitials = (name?: string) =>
+    (name ?? '??').split(' ').map(w => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '??'
 
   return (
     <div className="new-chat">
@@ -42,8 +55,8 @@ export function NewChatView() {
         <div className="selected-chips">
           {selectedUsers.map((u) => (
             <button key={u.id} className="chip" onClick={() => toggle(u.id)}>
-              <span className="chip__avatar">{u.initials}</span>
-              <span className="chip__name">{u.name.split(' ')[0]}</span>
+              <span className="chip__avatar">{getInitials(u.name)}</span>
+              <span className="chip__name">{(u.name ?? '?').split(' ')[0]}</span>
               <svg viewBox="0 0 20 20" fill="currentColor" className="chip__remove">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
@@ -74,10 +87,10 @@ export function NewChatView() {
               className={`user-row ${isSelected ? 'user-row--selected' : ''}`}
               onClick={() => toggle(user.id)}
             >
-              <div className="user-row__avatar">{user.initials}</div>
+              <div className="user-row__avatar">{getInitials(user.name)}</div>
               <div className="user-row__info">
                 <span className="user-row__name">{user.name}</span>
-                <span className="user-row__role">{user.role}</span>
+                <span className="user-row__role">{user.role ?? ''}</span>
               </div>
               <div className={`user-row__check ${isSelected ? 'user-row__check--on' : ''}`}>
                 {isSelected && (
