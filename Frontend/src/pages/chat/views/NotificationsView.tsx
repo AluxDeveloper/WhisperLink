@@ -1,67 +1,41 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './NotificationsView.css'
+import { friendsApi } from '../../../api/friends.api'
+import type { FriendRequestDto } from '../../../api/friends.api'
 
 type Filter = 'all' | 'messages' | 'mentions' | 'requests'
 
-const NOTIFICATIONS = [
-  {
-    id: 'n1',
-    type: 'message' as const,
-    from: 'Mara Popa',
-    initials: 'MP',
-    text: 'Hey, I updated the hero visuals. Can you check the new layout?',
-    time: '2 min ago',
-    unread: true,
-  },
-  {
-    id: 'n2',
-    type: 'mention' as const,
-    from: 'Launch Crew',
-    initials: 'LC',
-    text: '@you Need the final structure for chat and notifications.',
-    time: '14 min ago',
-    unread: true,
-  },
-  {
-    id: 'n3',
-    type: 'request' as const,
-    from: 'Victor Ciobanu',
-    initials: 'VC',
-    text: 'Sent you a friend request.',
-    time: '1 hr ago',
-    unread: true,
-  },
-  {
-    id: 'n4',
-    type: 'message' as const,
-    from: 'Radu Toma',
-    initials: 'RT',
-    text: 'The left navigation is clean. Buttons map directly to endpoints.',
-    time: '3 hr ago',
-    unread: false,
-  },
-  {
-    id: 'n5',
-    type: 'mention' as const,
-    from: 'QA Review',
-    initials: 'QR',
-    text: '@you We only need frontend visuals for this version.',
-    time: 'Yesterday',
-    unread: false,
-  },
-  {
-    id: 'n6',
-    type: 'request' as const,
-    from: 'Ioana Dascalu',
-    initials: 'ID',
-    text: 'Accepted your friend request.',
-    time: 'Yesterday',
-    unread: false,
-  },
-]
+interface Notification {
+  id: string
+  type: 'message' | 'mention' | 'request'
+  from: string
+  initials: string
+  text: string
+  time: string
+  unread: boolean
+  requestId?: string
+}
+
+function getToken(): string {
+  return localStorage.getItem('token') ?? ''
+}
+
+function getInitials(name: string): string {
+  return (name ?? '??').split(' ').map(w => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '??'
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins} min ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} hr ago`
+  return 'Yesterday'
+}
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all',      label: 'All'     },
+  { id: 'all',      label: 'All'      },
   { id: 'messages', label: 'Messages' },
   { id: 'mentions', label: 'Mentions' },
   { id: 'requests', label: 'Requests' },
@@ -70,8 +44,38 @@ const FILTERS: { id: Filter; label: string }[] = [
 export function NotificationsView() {
   const [filter, setFilter] = useState<Filter>('all')
   const [dismissed, setDismissed] = useState<string[]>([])
+  const [notifications, setNotifications] = useState<Notification[]>([])
 
-  const visible = NOTIFICATIONS.filter((n) => {
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+
+    friendsApi.getFriends(token)
+      .then(() => {})
+      .catch(() => {})
+
+    // Încarcă cererile de prietenie în așteptare
+    fetch('http://localhost:8080/api/friends/pending', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then((requests: FriendRequestDto[]) => {
+        const notifs: Notification[] = requests.map(r => ({
+          id: `req-${r.id}`,
+          type: 'request' as const,
+          from: r.fromUserId,
+          initials: '??',
+          text: 'Sent you a friend request.',
+          time: timeAgo(r.createdAt),
+          unread: true,
+          requestId: r.id,
+        }))
+        setNotifications(notifs)
+      })
+      .catch(() => {})
+  }, [])
+
+  const visible = notifications.filter((n) => {
     if (dismissed.includes(n.id)) return false
     if (filter === 'messages') return n.type === 'message'
     if (filter === 'mentions') return n.type === 'mention'
@@ -80,6 +84,20 @@ export function NotificationsView() {
   })
 
   const unreadCount = visible.filter((n) => n.unread).length
+
+  function handleAccept(n: Notification) {
+    if (!n.requestId) return
+    friendsApi.acceptRequest(n.requestId, getToken())
+      .then(() => setDismissed(prev => [...prev, n.id]))
+      .catch(() => {})
+  }
+
+  function handleDecline(n: Notification) {
+    if (!n.requestId) return
+    friendsApi.rejectRequest(n.requestId, getToken())
+      .then(() => setDismissed(prev => [...prev, n.id]))
+      .catch(() => {})
+  }
 
   return (
     <div className="notif-view">
@@ -100,9 +118,9 @@ export function NotificationsView() {
           <button
             className="mark-read-btn"
             onClick={() =>
-              setDismissed((prev) => [
+              setDismissed(prev => [
                 ...prev,
-                ...visible.filter((n) => n.unread).map((n) => n.id),
+                ...visible.filter(n => n.unread).map(n => n.id),
               ])
             }
           >
@@ -134,7 +152,7 @@ export function NotificationsView() {
         ) : (
           visible.map((n) => (
             <div key={n.id} className={`notif-item ${n.unread ? 'notif-item--unread' : ''}`}>
-              <div className="notif-item__avatar">{n.initials}</div>
+              <div className="notif-item__avatar">{getInitials(n.from)}</div>
               <div className="notif-item__body">
                 <span className="notif-item__from">{n.from}</span>
                 <p className="notif-item__text">{n.text}</p>
@@ -144,14 +162,14 @@ export function NotificationsView() {
                 {n.unread && <span className="unread-dot" />}
                 {n.type === 'request' && (
                   <div className="notif-item__request-btns">
-                    <button className="req-btn req-btn--accept">Accept</button>
-                    <button className="req-btn req-btn--decline">Decline</button>
+                    <button className="req-btn req-btn--accept" onClick={() => handleAccept(n)}>Accept</button>
+                    <button className="req-btn req-btn--decline" onClick={() => handleDecline(n)}>Decline</button>
                   </div>
                 )}
                 <button
                   className="notif-item__dismiss"
                   title="Dismiss"
-                  onClick={() => setDismissed((prev) => [...prev, n.id])}
+                  onClick={() => setDismissed(prev => [...prev, n.id])}
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
