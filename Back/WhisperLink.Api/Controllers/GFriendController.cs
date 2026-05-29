@@ -1,8 +1,12 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using WhisperLink.BusinessLayer.Core.Executions;
+using WhisperLink.DataAccess.Context;
+using WhisperLink.Domain.Enums;
 using WhisperLink.Domain.Models.Friends;
 
 namespace WhisperLink.Api.Controllers
@@ -12,10 +16,12 @@ namespace WhisperLink.Api.Controllers
     public class FriendController : ControllerBase
     {
         private readonly FriendExecution _friendExecution;
+        private readonly AppDbContext _context;
 
-        public FriendController(FriendExecution friendExecution)
+        public FriendController(FriendExecution friendExecution, AppDbContext context)
         {
             _friendExecution = friendExecution;
+            _context = context;
         }
 
         [HttpGet("api/friends")]
@@ -37,6 +43,28 @@ namespace WhisperLink.Api.Controllers
                 return Unauthorized(new { message = "Invalid token" });
 
             var requests = await _friendExecution.GetPendingRequestsAsync(userId);
+            return Ok(requests);
+        }
+
+        [HttpGet("api/friends/sent")]
+        public async Task<IActionResult> GetSentRequests()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid token" });
+
+            var requests = await _context.Friendships
+                .Where(f => f.RequesterId == userId && f.Status == FriendshipStatus.Pending)
+                .Select(f => new
+                {
+                    id = f.Id.ToString(),
+                    fromUserId = f.RequesterId.ToString(),
+                    toUserId = f.AddresseeId.ToString(),
+                    status = "pending",
+                    createdAt = f.CreatedAt.ToString("o")
+                })
+                .ToListAsync();
+
             return Ok(requests);
         }
 
