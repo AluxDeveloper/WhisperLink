@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using WhisperLink.Domain.Entities;
 using WhisperLink.Domain.Models.Users;
+using WhisperLink.Domain.Models.Friends;
 
 namespace WhisperLink.BusinessLayer.Core.Helpers
 {
@@ -15,6 +16,11 @@ namespace WhisperLink.BusinessLayer.Core.Helpers
                 .ForMember(dest => dest.Handle, opt => opt.MapFrom(src => src.Handle))
                 .ForMember(dest => dest.JobRole, opt => opt.MapFrom(src => src.JobRole))
                 .ForMember(dest => dest.Bio, opt => opt.MapFrom(src => src.Bio));
+
+            CreateMap<Friendship, FriendshipDto>()
+                .ForMember(dest => dest.RequesterId, opt => opt.MapFrom(src => src.RequesterId))
+                .ForMember(dest => dest.AddresseeId, opt => opt.MapFrom(src => src.AddresseeId))
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status));
         }
     }
 }
