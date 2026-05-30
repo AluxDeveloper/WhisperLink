@@ -31,8 +31,28 @@ namespace WhisperLink.Api.Controllers
             if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
                 return Unauthorized(new { message = "Invalid token" });
 
-            var friends = await _friendExecution.GetFriendsAsync(userId);
-            return Ok(friends);
+            var friendships = await _context.Friendships
+                .Include(f => f.Requester)
+                .Include(f => f.Addressee)
+                .Where(f => f.Status == FriendshipStatus.Accepted &&
+                            (f.RequesterId == userId || f.AddresseeId == userId))
+                .ToListAsync();
+
+            var result = friendships.Select(f => {
+                var other = f.RequesterId == userId ? f.Addressee : f.Requester;
+                return new
+                {
+                    id = other.Id.ToString(),
+                    name = other.DisplayName,
+                    handle = other.Handle,
+                    email = other.Email,
+                    role = other.JobRole,
+                    avatarUrl = other.ProfilePictureUrl,
+                    status = other.Presence.ToString().ToLower()
+                };
+            });
+
+            return Ok(result);
         }
 
         [HttpGet("api/friends/pending")]
