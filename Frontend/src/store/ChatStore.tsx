@@ -1,9 +1,12 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { ChatWorkspaceModel, ChatUser, ConversationPreview, ActiveConversation, RoomMessage } from '../types'
 import { chatApi } from '../api/chat.api'
 import type { ConversationDto, MessageDto } from '../api/chat.api'
 import { mockChatWorkspace } from '../mock/chat.mock'
+import * as signalR from '@microsoft/signalr'
+
+const HUB_URL = 'http://localhost:8080/chatHub'
 
 interface ChatContextType extends ChatWorkspaceModel {
   loadConversation: (conversationId: string, title: string, presence: string, avatarText: string, accent: string) => void
@@ -67,16 +70,18 @@ function conversationDtoToPreview(dto: ConversationDto): ConversationPreview {
   }
 }
 
-function messageDtoToRoomMessage(dto: MessageDto): RoomMessage {
+function messageToRoomMessage(msg: any): RoomMessage {
   return {
-    id: dto.id,
-    authorId: dto.authorId,
-    text: dto.text,
-    time: new Date(dto.createdAt).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
+    id: String(msg.id),
+    authorId: String(msg.senderId ?? msg.authorId),
+    text: msg.content ?? msg.text,
+    time: new Date(msg.createdAt).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
   }
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const connectionRef = useRef<signalR.HubConnection | null>(null)
+
   const [workspace, setWorkspace] = useState<ChatWorkspaceModel>(() => {
     const stored = getStoredUser()
     if (!stored) return mockChatWorkspace
@@ -95,6 +100,91 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   })
 
+  // Referință la conversația activă pentru SignalR handlers
+  const activeConvIdRef = useRef<string>('')
+
+  useEffect(() => {
+    activeConvIdRef.current = workspace.activeConversation.id
+  }, [workspace.activeConversation.id])
+
+  // Conectare SignalR
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(HUB_URL, { accessTokenFactory: () => token })
+      .withAutomaticReconnect()
+      .build()
+
+    // Primești un mesaj nou
+    connection.on('ReceiveMessage', (msg: any) => {
+      const newMessage = messageToRoomMessage(msg)
+      const senderId = String(msg.senderId ?? msg.authorId)
+
+      setWorkspace(prev => {
+        // Dacă conversația activă e cu cel care a trimis mesajul
+        const isActiveConv = prev.activeConversation.id === senderId
+
+        return {
+          ...prev,
+          activeConversation: isActiveConv
+            ? { ...prev.activeConversation, messages: [...prev.activeConversation.messages, newMessage] }
+            : prev.activeConversation,
+          conversations: prev.conversations.map(c =>
+            c.id === senderId
+              ? { ...c, message: newMessage.text, time: newMessage.time, unreadCount: isActiveConv ? 0 : c.unreadCount + 1 }
+              : c
+          )
+        }
+      })
+    })
+
+    // Confirmare mesaj trimis
+    connection.on('MessageSent', (msg: any) => {
+      const newMessage = messageToRoomMessage(msg)
+      setWorkspace(prev => ({
+        ...prev,
+        activeConversation: {
+          ...prev.activeConversation,
+          messages: [...prev.activeConversation.messages, newMessage],
+        },
+        conversations: prev.conversations.map(c =>
+          c.id === prev.activeConversation.id
+            ? { ...c, message: newMessage.text, time: newMessage.time }
+            : c
+        )
+      }))
+    })
+
+    connection.on('UserOnline', (userId: string) => {
+      setWorkspace(prev => ({
+        ...prev,
+        conversations: prev.conversations.map(c =>
+          c.id === userId ? { ...c, presence: 'online' as const } : c
+        )
+      }))
+    })
+
+    connection.on('UserOffline', (userId: string) => {
+      setWorkspace(prev => ({
+        ...prev,
+        conversations: prev.conversations.map(c =>
+          c.id === userId ? { ...c, presence: 'offline' as const } : c
+        )
+      }))
+    })
+
+    connection.start()
+      .then(() => console.log('SignalR connected'))
+      .catch(err => console.log('SignalR error:', err))
+
+    connectionRef.current = connection
+
+    return () => { connection.stop() }
+  }, [])
+
+  // Încarcă conversațiile la mount
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -121,7 +211,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       accent,
     }
 
-    // Setează conversația activă imediat cu mesaje goale
     setWorkspace(prev => ({
       ...prev,
       activeConversation: {
@@ -135,29 +224,61 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     }))
 
-    // Încarcă mesajele
     chatApi.getMessages(conversationId, token).then(messages => {
-      const roomMessages: RoomMessage[] = messages.map(messageDtoToRoomMessage)
       setWorkspace(prev => ({
         ...prev,
         activeConversation: {
           ...prev.activeConversation,
-          messages: roomMessages,
+          messages: messages.map(messageToRoomMessage),
         }
       }))
     }).catch(() => {})
+
+    // Adaugă conversația în listă dacă nu există
+    setWorkspace(prev => {
+      const exists = prev.conversations.find(c => c.id === conversationId)
+      if (exists) return prev
+      const newConv: ConversationPreview = {
+        id: conversationId,
+        section: 'Conversații',
+        title,
+        message: '',
+        time: '',
+        tag: '',
+        unreadCount: 0,
+        avatarText,
+        accent,
+        presence: presence as any,
+      }
+      return { ...prev, conversations: [newConv, ...prev.conversations] }
+    })
   }
 
   function sendMessage(text: string) {
+    const conversationId = workspace.activeConversation.id
+    if (!conversationId) return
+
+    const connection = connectionRef.current
+    if (connection && connection.state === signalR.HubConnectionState.Connected) {
+      // Trimite prin SignalR
+      connection.invoke('SendMessage', parseInt(conversationId), text)
+        .catch(() => {
+          // Fallback la REST API
+          sendViaRest(text, conversationId)
+        })
+    } else {
+      // Fallback la REST API
+      sendViaRest(text, conversationId)
+    }
+  }
+
+  function sendViaRest(text: string, conversationId: string) {
     const token = getToken()
     const stored = getStoredUser()
     if (!stored) return
 
-    const conversationId = workspace.activeConversation.id
-    if (!conversationId) return
-
     chatApi.sendMessage({ conversationId, text }, token).then(msg => {
-      const newMessage: RoomMessage = messageDtoToRoomMessage(msg)
+      const newMessage = messageToRoomMessage(msg)
       setWorkspace(prev => ({
         ...prev,
         activeConversation: {
