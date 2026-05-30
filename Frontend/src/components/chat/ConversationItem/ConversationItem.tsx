@@ -5,13 +5,17 @@ import './ConversationItem.css'
 interface ConversationItemProps {
   conversation: ConversationPreview
   isActive?: boolean
+  onSelect?: () => void
 }
 
-export function ConversationItem({ conversation, isActive = false }: ConversationItemProps) {
+export function ConversationItem({ conversation, isActive = false, onSelect }: ConversationItemProps) {
   const isOnline = conversation.presence === 'online'
 
   return (
-    <button className={joinClassNames('conv-item', isActive && 'conv-item--active')}>
+    <button
+      className={joinClassNames('conv-item', isActive && 'conv-item--active')}
+      onClick={onSelect}
+    >
       <div className="conv-avatar-wrap">
         <div
           className="conv-avatar"
