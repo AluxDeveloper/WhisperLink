@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ConversationPreview } from '../../../types'
 import { ConversationItem } from '../ConversationItem/ConversationItem'
+import { useChatStore } from '../../../store/ChatStore'
 import './ConversationList.css'
 
 interface ConversationListProps {
@@ -10,10 +11,21 @@ interface ConversationListProps {
 
 export function ConversationList({ conversations, activeConversationId }: ConversationListProps) {
   const [search, setSearch] = useState('')
+  const { loadConversation } = useChatStore()
 
   const filtered = conversations.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase()),
   )
+
+  function handleSelect(conversation: ConversationPreview) {
+    loadConversation(
+      conversation.id,
+      conversation.title,
+      conversation.presence,
+      conversation.avatarText,
+      conversation.accent,
+    )
+  }
 
   return (
     <section className="conv-list-panel">
@@ -41,6 +53,7 @@ export function ConversationList({ conversations, activeConversationId }: Conver
             key={conversation.id}
             conversation={conversation}
             isActive={conversation.id === activeConversationId}
+            onSelect={() => handleSelect(conversation)}
           />
         ))}
         {filtered.length === 0 && (
