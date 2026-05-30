@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react'
 import type { ActiveConversation, ChatUser } from '../../../types'
 import { Avatar } from '../../ui'
 import { MessageList } from '../MessageList/MessageList'
+import { useChatStore } from '../../../store/ChatStore'
 import './ChatWindow.css'
 
 interface ChatWindowProps {
@@ -11,11 +12,13 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ currentUser, conversation }: ChatWindowProps) {
+  const { sendMessage } = useChatStore()
   const leadUser = conversation.participants[0]
   const [draft, setDraft] = useState('')
 
   function handleSend() {
     if (!draft.trim()) return
+    sendMessage(draft.trim())
     setDraft('')
   }
 
@@ -30,7 +33,6 @@ export function ChatWindow({ currentUser, conversation }: ChatWindowProps) {
 
   return (
     <section className="chat-window">
-      {/* Header */}
       <header className="cw-header">
         <Avatar
           name={leadUser?.avatarText ?? 'WL'}
@@ -64,7 +66,6 @@ export function ChatWindow({ currentUser, conversation }: ChatWindowProps) {
         </div>
       </header>
 
-      {/* Messages */}
       <div className="cw-feed">
         <MessageList
           messages={conversation.messages}
@@ -73,7 +74,6 @@ export function ChatWindow({ currentUser, conversation }: ChatWindowProps) {
         />
       </div>
 
-      {/* Composer */}
       <div className="cw-composer">
         <button className="cw-attach" title="Atașează fișier">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
