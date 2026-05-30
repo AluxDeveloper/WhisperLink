@@ -47,7 +47,9 @@ function ChatPageContent({ onBack }: ChatPageProps) {
           </>
         )}
 
-        {currentView === 'new-chat'      && <NewChatView />}
+        {currentView === 'new-chat' && (
+          <NewChatView onStartChat={() => setCurrentView('chat')} />
+        )}
         {currentView === 'search'        && <SearchUserView />}
         {currentView === 'notifications' && <NotificationsView />}
         {currentView === 'settings'      && <SettingsView />}
