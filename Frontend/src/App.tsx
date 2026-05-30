@@ -8,38 +8,45 @@ import { AdminDashboard } from './pages/admin/AdminDashboard'
 type AppPage = 'landing' | 'login' | 'register' | 'chat' | 'admin'
 
 function App() {
-  const [page, setPage] = useState<AppPage>('landing')
+  const [page, setPage] = useState<AppPage>(() => {
+    // La refresh verifică dacă există token valid
+    const token = localStorage.getItem('token')
+    const user = localStorage.getItem('user')
+    if (token && user) return 'chat'
+    return 'landing'
+  })
 
   useEffect(() => {
     document.body.style.overflow = page === 'chat' || page === 'admin' ? 'hidden' : 'auto'
     return () => { document.body.style.overflow = '' }
   }, [page])
 
-  // Admin Dashboard
+  function handleLogout() {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    setPage('landing')
+  }
+
   if (page === 'admin') return <AdminDashboard />
 
-  // Chat Page
-  if (page === 'chat') return <ChatPage onBack={() => setPage('landing')} />
+  if (page === 'chat') return <ChatPage onBack={handleLogout} />
 
-  // Register Page
   if (page === 'register') return (
-    <RegisterPage 
-      onRegister={() => setPage('chat')} 
-      onGoLogin={() => setPage('login')} 
-      onBack={() => setPage('landing')} 
+    <RegisterPage
+      onRegister={() => setPage('chat')}
+      onGoLogin={() => setPage('login')}
+      onBack={() => setPage('landing')}
     />
   )
 
-  // Login Page
   if (page === 'login') return (
-    <LoginPage 
-      onLogin={() => setPage('chat')} 
-      onGoRegister={() => setPage('register')} 
-      onBack={() => setPage('landing')} 
+    <LoginPage
+      onLogin={() => setPage('chat')}
+      onGoRegister={() => setPage('register')}
+      onBack={() => setPage('landing')}
     />
   )
 
-  // Landing Page (default)
   return <LandingPage onEnter={() => setPage('login')} />
 }
 
