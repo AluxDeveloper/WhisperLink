@@ -2,6 +2,7 @@
 using WhisperLink.Domain.Entities;
 using WhisperLink.Domain.Models.Users;
 using WhisperLink.Domain.Models.Friends;
+using WhisperLink.Domain.Models.Messages;
 
 namespace WhisperLink.BusinessLayer.Core.Helpers
 {
@@ -20,6 +21,12 @@ namespace WhisperLink.BusinessLayer.Core.Helpers
             CreateMap<Friendship, FriendshipDto>()
                 .ForMember(dest => dest.RequesterId, opt => opt.MapFrom(src => src.RequesterId))
                 .ForMember(dest => dest.AddresseeId, opt => opt.MapFrom(src => src.AddresseeId))
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status));
+
+            CreateMap<Message, MessageDto>()
+                .ForMember(dest => dest.SenderId, opt => opt.MapFrom(src => src.SenderId))
+                .ForMember(dest => dest.ReceiverId, opt => opt.MapFrom(src => src.ReceiverId))
+                .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.Content))
                 .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status));
         }
     }
