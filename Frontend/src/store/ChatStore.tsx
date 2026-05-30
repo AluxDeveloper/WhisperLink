@@ -255,22 +255,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   function sendMessage(text: string) {
-    const conversationId = workspace.activeConversation.id
-    if (!conversationId) return
+  const conversationId = workspace.activeConversation.id
+  if (!conversationId) return
 
-    const connection = connectionRef.current
-    if (connection && connection.state === signalR.HubConnectionState.Connected) {
-      // Trimite prin SignalR
-      connection.invoke('SendMessage', parseInt(conversationId), text)
-        .catch(() => {
-          // Fallback la REST API
-          sendViaRest(text, conversationId)
-        })
-    } else {
-      // Fallback la REST API
-      sendViaRest(text, conversationId)
-    }
+  const connection = connectionRef.current
+  if (connection && connection.state === signalR.HubConnectionState.Connected) {
+    // Trimite DOAR prin SignalR — MessageSent callback va adăuga mesajul în UI
+    // NU adăugăm mesajul manual aici ca să evităm duplicatele
+    connection.invoke('SendMessage', parseInt(conversationId), text)
+      .catch(() => sendViaRest(text, conversationId))
+  } else {
+    sendViaRest(text, conversationId)
   }
+}
 
   function sendViaRest(text: string, conversationId: string) {
     const token = getToken()
