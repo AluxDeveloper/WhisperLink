@@ -2,25 +2,28 @@ import { useState, useEffect } from 'react'
 import './NewChatView.css'
 import { friendsApi } from '../../../api/friends.api'
 import type { FriendDto } from '../../../api/friends.api'
+import { useChatStore } from '../../../store/ChatStore'
 
 function getToken(): string {
   return localStorage.getItem('token') ?? ''
 }
 
-export function NewChatView() {
+interface NewChatViewProps {
+  onStartChat?: () => void
+}
+
+export function NewChatView({ onStartChat }: NewChatViewProps) {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<string[]>([])
   const [users, setUsers] = useState<FriendDto[]>([])
+  const { loadConversation } = useChatStore()
 
   useEffect(() => {
     const token = getToken()
     if (!token) return
     friendsApi.searchUsers('', token)
-      .then(data => {
-        console.log('users from backend:', JSON.stringify(data))
-        setUsers(data)
-      })
-      .catch((err) => console.log('error:', err))
+      .then(setUsers)
+      .catch(() => {})
   }, [])
 
   const filtered = users.filter((u) =>
@@ -35,7 +38,24 @@ export function NewChatView() {
   const selectedUsers = users.filter((u) => selected.includes(u.id))
 
   const getInitials = (name?: string) =>
-    (name ?? '??').split(' ').map(w => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '??'
+    (name ?? '??').split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '??'
+
+  function handleStartChat() {
+    if (selected.length === 0) return
+    const firstUser = users.find(u => u.id === selected[0])
+    if (!firstUser) return
+
+    loadConversation(
+      firstUser.id,
+      firstUser.name ?? '',
+      firstUser.status ?? 'offline',
+      getInitials(firstUser.name),
+      'linear-gradient(135deg, #8a2be2, #ff007f)',
+    )
+
+    setSelected([])
+    onStartChat?.()
+  }
 
   return (
     <div className="new-chat">
@@ -106,7 +126,7 @@ export function NewChatView() {
 
       {selected.length > 0 && (
         <div className="new-chat__footer">
-          <button className="start-btn">
+          <button className="start-btn" onClick={handleStartChat}>
             Start Chat
             {selected.length > 1 && <span className="start-btn__count">{selected.length}</span>}
           </button>
