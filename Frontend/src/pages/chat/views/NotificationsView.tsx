@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import './NotificationsView.css'
 import { friendsApi } from '../../../api/friends.api'
 import type { FriendRequestDto } from '../../../api/friends.api'
+import { userApi } from '../../../api/user.api'
+import { useSignalR } from '../../../hooks/useSignalR'
 
 type Filter = 'all' | 'messages' | 'mentions' | 'requests'
 
@@ -46,22 +48,52 @@ export function NotificationsView() {
   const [dismissed, setDismissed] = useState<string[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
 
+  // SignalR — primește mesaje noi ca notificări
+  useSignalR({
+    onReceiveMessage: (msg: any) => {
+      const token = getToken()
+      userApi.getUser(String(msg.senderId ?? msg.authorId), token)
+        .then(user => {
+          const newNotif: Notification = {
+            id: `msg-${msg.id}-${Date.now()}`,
+            type: 'message',
+            from: user.name,
+            initials: getInitials(user.name),
+            text: msg.content ?? msg.text,
+            time: 'just now',
+            unread: true,
+          }
+          setNotifications(prev => [newNotif, ...prev])
+        })
+        .catch(() => {})
+    }
+  })
+
   useEffect(() => {
     const token = getToken()
     if (!token) return
 
     friendsApi.getPendingRequests(token)
-      .then((requests: FriendRequestDto[]) => {
-        const notifs: Notification[] = requests.map(r => ({
-          id: `req-${r.id}`,
-          type: 'request' as const,
-          from: r.fromUserId,
-          initials: '??',
-          text: 'Sent you a friend request.',
-          time: timeAgo(r.createdAt),
-          unread: true,
-          requestId: r.id,
-        }))
+      .then(async (requests: FriendRequestDto[]) => {
+        const notifs: Notification[] = await Promise.all(
+          requests.map(async r => {
+            let fromName = r.fromUserId
+            try {
+              const user = await userApi.getUser(r.fromUserId, token)
+              fromName = user.name
+            } catch {}
+            return {
+              id: `req-${r.id}`,
+              type: 'request' as const,
+              from: fromName,
+              initials: getInitials(fromName),
+              text: 'Sent you a friend request.',
+              time: timeAgo(r.createdAt),
+              unread: true,
+              requestId: r.id,
+            }
+          })
+        )
         setNotifications(notifs)
       })
       .catch(() => {})
@@ -144,7 +176,7 @@ export function NotificationsView() {
         ) : (
           visible.map((n) => (
             <div key={n.id} className={`notif-item ${n.unread ? 'notif-item--unread' : ''}`}>
-              <div className="notif-item__avatar">{getInitials(n.from)}</div>
+              <div className="notif-item__avatar">{n.initials}</div>
               <div className="notif-item__body">
                 <span className="notif-item__from">{n.from}</span>
                 <p className="notif-item__text">{n.text}</p>
