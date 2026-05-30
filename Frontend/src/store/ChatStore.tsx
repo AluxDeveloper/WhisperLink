@@ -5,7 +5,12 @@ import { chatApi } from '../api/chat.api'
 import type { ConversationDto, MessageDto } from '../api/chat.api'
 import { mockChatWorkspace } from '../mock/chat.mock'
 
-const ChatContext = createContext<ChatWorkspaceModel | null>(null)
+interface ChatContextType extends ChatWorkspaceModel {
+  loadConversation: (conversationId: string, title: string, presence: string, avatarText: string, accent: string) => void
+  sendMessage: (text: string) => void
+}
+
+const ChatContext = createContext<ChatContextType | null>(null)
 
 function getToken(): string {
   return localStorage.getItem('token') ?? ''
@@ -96,56 +101,86 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     chatApi.getConversations(token).then(conversations => {
       const previews: ConversationPreview[] = conversations.map(conversationDtoToPreview)
-      setWorkspace(prev => ({
-        ...prev,
-        conversations: previews,
-      }))
+      setWorkspace(prev => ({ ...prev, conversations: previews }))
     }).catch(() => {})
   }, [])
 
-  function loadMessages(conversationId: string, token: string, preview: ConversationPreview) {
-    chatApi.getMessages(conversationId, token).then(messages => {
-      const roomMessages: RoomMessage[] = messages.map(messageDtoToRoomMessage)
+  function loadConversation(conversationId: string, title: string, presence: string, avatarText: string, accent: string) {
+    const token = getToken()
+    const stored = getStoredUser()
+    const currentUserChat: ChatUser = stored ? backendUserToChatUser(stored) : mockChatWorkspace.currentUser
 
-      const stored = getStoredUser()
-      const currentUserChat: ChatUser = stored ? backendUserToChatUser(stored) : mockChatWorkspace.currentUser
+    const otherUser: ChatUser = {
+      id: conversationId,
+      name: title,
+      handle: '',
+      role: '',
+      email: '',
+      presence: presence as any,
+      avatarText,
+      accent,
+    }
 
-      const otherUser: ChatUser = {
-        id: conversationId,
-        name: preview.title,
-        handle: '',
-        role: '',
-        email: '',
-        presence: preview.presence,
-        avatarText: preview.avatarText,
-        accent: preview.accent,
-      }
-
-      const activeConv: ActiveConversation = {
+    // Setează conversația activă imediat cu mesaje goale
+    setWorkspace(prev => ({
+      ...prev,
+      activeConversation: {
         ...mockChatWorkspace.activeConversation,
         id: conversationId,
-        title: preview.title,
-        subtitle: preview.presence === 'online' ? 'Online' : 'Offline',
-        messages: roomMessages,
+        title,
+        subtitle: presence === 'online' ? 'Online' : 'Offline',
+        messages: [],
         participants: [otherUser, currentUserChat],
         composerHint: 'Scrie un mesaj... (Enter pentru trimite)',
       }
+    }))
 
+    // Încarcă mesajele
+    chatApi.getMessages(conversationId, token).then(messages => {
+      const roomMessages: RoomMessage[] = messages.map(messageDtoToRoomMessage)
       setWorkspace(prev => ({
         ...prev,
-        activeConversation: activeConv,
+        activeConversation: {
+          ...prev.activeConversation,
+          messages: roomMessages,
+        }
+      }))
+    }).catch(() => {})
+  }
+
+  function sendMessage(text: string) {
+    const token = getToken()
+    const stored = getStoredUser()
+    if (!stored) return
+
+    const conversationId = workspace.activeConversation.id
+    if (!conversationId) return
+
+    chatApi.sendMessage({ conversationId, text }, token).then(msg => {
+      const newMessage: RoomMessage = messageDtoToRoomMessage(msg)
+      setWorkspace(prev => ({
+        ...prev,
+        activeConversation: {
+          ...prev.activeConversation,
+          messages: [...prev.activeConversation.messages, newMessage],
+        },
+        conversations: prev.conversations.map(c =>
+          c.id === conversationId
+            ? { ...c, message: text, time: newMessage.time }
+            : c
+        )
       }))
     }).catch(() => {})
   }
 
   return (
-    <ChatContext.Provider value={workspace}>
+    <ChatContext.Provider value={{ ...workspace, loadConversation, sendMessage }}>
       {children}
     </ChatContext.Provider>
   )
 }
 
-export function useChatStore(): ChatWorkspaceModel {
+export function useChatStore(): ChatContextType {
   const ctx = useContext(ChatContext)
   if (!ctx) throw new Error('useChatStore trebuie folosit în interiorul <ChatProvider>')
   return ctx
