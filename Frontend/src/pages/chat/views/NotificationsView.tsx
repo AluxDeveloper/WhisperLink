@@ -3,7 +3,7 @@ import './NotificationsView.css'
 import { friendsApi } from '../../../api/friends.api'
 import type { FriendRequestDto } from '../../../api/friends.api'
 import { userApi } from '../../../api/user.api'
-import { useSignalR } from '../../../hooks/useSignalR'
+import { useChatStore } from '../../../store/ChatStore'
 
 type Filter = 'all' | 'messages' | 'mentions' | 'requests'
 
@@ -47,10 +47,11 @@ export function NotificationsView() {
   const [filter, setFilter] = useState<Filter>('all')
   const [dismissed, setDismissed] = useState<string[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const { onNewMessage } = useChatStore()
 
-  // SignalR — primește mesaje noi ca notificări
-  useSignalR({
-    onReceiveMessage: (msg: any) => {
+  // SignalR prin ChatStore — fără conexiune duplicată
+  useEffect(() => {
+    const unsubscribe = onNewMessage((msg: any) => {
       const token = getToken()
       userApi.getUser(String(msg.senderId ?? msg.authorId), token)
         .then(user => {
@@ -66,8 +67,9 @@ export function NotificationsView() {
           setNotifications(prev => [newNotif, ...prev])
         })
         .catch(() => {})
-    }
-  })
+    })
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     const token = getToken()
