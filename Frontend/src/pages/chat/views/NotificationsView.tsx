@@ -16,6 +16,7 @@ interface Notification {
   time: string
   unread: boolean
   requestId?: string
+  resolved?: boolean
 }
 
 function getToken(): string {
@@ -45,11 +46,9 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 export function NotificationsView() {
   const [filter, setFilter] = useState<Filter>('all')
-  const [dismissed, setDismissed] = useState<string[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const { onNewMessage } = useChatStore()
 
-  // SignalR prin ChatStore — fără conexiune duplicată
   useEffect(() => {
     const unsubscribe = onNewMessage((msg: any) => {
       const token = getToken()
@@ -93,6 +92,7 @@ export function NotificationsView() {
               time: timeAgo(r.createdAt),
               unread: true,
               requestId: r.id,
+              resolved: false,
             }
           })
         )
@@ -102,7 +102,6 @@ export function NotificationsView() {
   }, [])
 
   const visible = notifications.filter((n) => {
-    if (dismissed.includes(n.id)) return false
     if (filter === 'messages') return n.type === 'message'
     if (filter === 'mentions') return n.type === 'mention'
     if (filter === 'requests') return n.type === 'request'
@@ -114,15 +113,31 @@ export function NotificationsView() {
   function handleAccept(n: Notification) {
     if (!n.requestId) return
     friendsApi.acceptRequest(n.requestId, getToken())
-      .then(() => setDismissed(prev => [...prev, n.id]))
+      .then(() => setNotifications(prev => prev.map(notif =>
+        notif.id === n.id
+          ? { ...notif, text: 'Ai acceptat cererea de prietenie.', unread: false, resolved: true }
+          : notif
+      )))
       .catch(() => {})
   }
 
   function handleDecline(n: Notification) {
     if (!n.requestId) return
     friendsApi.rejectRequest(n.requestId, getToken())
-      .then(() => setDismissed(prev => [...prev, n.id]))
+      .then(() => setNotifications(prev => prev.map(notif =>
+        notif.id === n.id
+          ? { ...notif, text: 'Ai respins cererea de prietenie.', unread: false, resolved: true }
+          : notif
+      )))
       .catch(() => {})
+  }
+
+  function handleDismiss(id: string) {
+    setNotifications(prev => prev.filter(n => n.id !== id))
+  }
+
+  function markAllRead() {
+    setNotifications(prev => prev.map(n => ({ ...n, unread: false })))
   }
 
   return (
@@ -141,15 +156,7 @@ export function NotificationsView() {
           <p className="view-header__sub">Stay updated on your activity</p>
         </div>
         {unreadCount > 0 && (
-          <button
-            className="mark-read-btn"
-            onClick={() =>
-              setDismissed(prev => [
-                ...prev,
-                ...visible.filter(n => n.unread).map(n => n.id),
-              ])
-            }
-          >
+          <button className="mark-read-btn" onClick={markAllRead}>
             Mark all read
           </button>
         )}
@@ -186,7 +193,7 @@ export function NotificationsView() {
               </div>
               <div className="notif-item__right">
                 {n.unread && <span className="unread-dot" />}
-                {n.type === 'request' && (
+                {n.type === 'request' && !n.resolved && (
                   <div className="notif-item__request-btns">
                     <button className="req-btn req-btn--accept" onClick={() => handleAccept(n)}>Accept</button>
                     <button className="req-btn req-btn--decline" onClick={() => handleDecline(n)}>Decline</button>
@@ -195,7 +202,7 @@ export function NotificationsView() {
                 <button
                   className="notif-item__dismiss"
                   title="Dismiss"
-                  onClick={() => setDismissed(prev => [...prev, n.id])}
+                  onClick={() => handleDismiss(n.id)}
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
