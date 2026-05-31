@@ -1,4 +1,3 @@
-// ─── Admin API ────────────────────────────────────────────────────────────────
 import { request } from './client'
 
 export interface AdminStats {
@@ -26,11 +25,11 @@ export const adminApi = {
     request<AdminStats>('/auth/stats'),
 
   getAllUsers: (token: string) =>
-    request<AdminUserDto[]>('/users', { token }),
+    request<any[]>('/users', { token }),
 
   updateUser: (userId: number, data: any, token: string) =>
     request<AdminUserDto>(`/users/${userId}`, { method: 'PUT', body: data, token }),
 
   deleteUser: (userId: number, token: string) =>
-    request<void>(`/users/${userId}`, { method: 'DELETE', token }),
+    request<void>(`/users/admin/${userId}`, { method: 'DELETE', token }),
 }
