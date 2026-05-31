@@ -28,6 +28,29 @@
   overflow: hidden;
 }
 
+.chat-shell > .admin-dashboard {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(138, 43, 226, 0.4) transparent;
+}
+
+.chat-shell > .admin-dashboard::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-shell > .admin-dashboard::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-shell > .admin-dashboard::-webkit-scrollbar-thumb {
+  background: rgba(138, 43, 226, 0.4);
+  border-radius: 3px;
+}
+
+.chat-shell > .admin-dashboard::-webkit-scrollbar-thumb:hover {
+  background: rgba(138, 43, 226, 0.7);
+}
+
 @media (max-width: 1280px) {
   .chat-shell {
     grid-template-columns: 104px 320px minmax(0, 1fr);
