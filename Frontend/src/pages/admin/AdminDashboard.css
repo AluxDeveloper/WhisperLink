@@ -2,6 +2,9 @@
   padding: 32px;
   max-width: 1400px;
   margin: 0 auto;
+  overflow-y: auto;
+  height: 100vh;
+  box-sizing: border-box;
 }
 
 .admin-header {
@@ -21,7 +24,6 @@
   font-size: 0.95rem;
 }
 
-/* Statistici */
 .admin-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -49,7 +51,6 @@
   font-weight: 600;
 }
 
-/* Section */
 .admin-section {
   background: rgba(255, 255, 255, 0.03);
   border-radius: 16px;
@@ -80,7 +81,6 @@
   width: 300px;
 }
 
-/* Table */
 .users-table {
   overflow-x: auto;
 }
