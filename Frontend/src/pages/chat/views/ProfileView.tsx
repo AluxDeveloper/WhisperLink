@@ -1,30 +1,54 @@
 import { useState, useEffect } from 'react'
 import './ProfileView.css'
 import { userApi } from '../../../api/user.api'
+import { friendsApi } from '../../../api/friends.api'
 
 function getToken(): string {
   return localStorage.getItem('token') ?? ''
 }
 
+interface ActivityItem {
+  id: string
+  text: string
+  time: string
+}
+
 export function ProfileView() {
   const [editing, setEditing] = useState(false)
-  const [name, setName]     = useState('')
-  const [handle, setHandle] = useState('')
-  const [role, setRole]     = useState('')
-  const [bio, setBio]       = useState('')
-  const [email, setEmail]   = useState('')
+  const [name, setName]       = useState('')
+  const [handle, setHandle]   = useState('')
+  const [role, setRole]       = useState('')
+  const [bio, setBio]         = useState('')
+  const [email, setEmail]     = useState('')
+  const [stats, setStats]     = useState({ friends: 0, conversations: 0, messages: 0 })
+  const [activity, setActivity] = useState<ActivityItem[]>([])
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
-    userApi.getMe(token).then(user => {
-      setName(user.name ?? '')
-      setHandle(user.handle ?? '')
-      setRole(user.role ?? '')
-      setBio('')
-      setEmail(user.email ?? '')
+ useEffect(() => {
+  const token = getToken()
+  if (!token) return
+
+  userApi.getMe(token).then(user => {
+    setName(user.name ?? '')
+    setHandle(user.handle ?? '')
+    setRole(user.role ?? '')
+    setBio(user.bio ?? '')
+    setEmail(user.email ?? '')
+  }).catch(() => {})
+
+  fetch('http://localhost:8080/api/user/stats', {
+    headers: { Authorization: `Bearer ${token}` }
+  }).then(r => r.json()).then((data: any) => {
+    setStats({ friends: data.friends, conversations: data.conversations, messages: data.messages })
+    friendsApi.getFriends(token).then((friends: any[]) => {
+      const acts: ActivityItem[] = friends.slice(0, 4).map((f, i) => ({
+        id: `friend-${i}`,
+        text: `Ești prieten cu ${f.name}`,
+        time: 'Recent'
+      }))
+      setActivity(acts)
     }).catch(() => {})
-  }, [])
+  }).catch(() => {})
+}, [])
 
   function handleSave() {
     const token = getToken()
@@ -37,13 +61,6 @@ export function ProfileView() {
   const initials = name
     ? name.split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2)
     : '??'
-
-  const ACTIVITY = [
-    { id: 'a1', text: 'Ai trimis o cerere de prietenie lui Vlad Dumitru', time: 'Acum 2 ore' },
-    { id: 'a2', text: 'Ai început o conversație cu Mara Popa', time: 'Ieri, 14:32' },
-    { id: 'a3', text: 'Ți-ai actualizat poza de profil', time: 'Acum 3 zile' },
-    { id: 'a4', text: 'Te-ai alăturat grupului „Design Systems"', time: 'Acum 5 zile' },
-  ]
 
   return (
     <div className="profile-view">
@@ -98,9 +115,9 @@ export function ProfileView() {
 
       <div className="profile-stats">
         {[
-          { label: 'Prieteni',    value: '—' },
-          { label: 'Conversații', value: '—' },
-          { label: 'Mesaje',      value: '—' },
+          { label: 'Prieteni',    value: String(stats.friends)       },
+          { label: 'Conversații', value: String(stats.conversations) },
+          { label: 'Mesaje',      value: String(stats.messages)      },
         ].map((s) => (
           <div key={s.label} className="profile-stat">
             <span className="profile-stat__value">{s.value}</span>
@@ -145,15 +162,19 @@ export function ProfileView() {
         <section className="profile-section">
           <h3 className="profile-section__title">Activitate recentă</h3>
           <div className="activity-list">
-            {ACTIVITY.map((a) => (
-              <div key={a.id} className="activity-item">
-                <div className="activity-item__dot" />
-                <div className="activity-item__body">
-                  <p className="activity-item__text">{a.text}</p>
-                  <span className="activity-item__time">{a.time}</span>
+            {activity.length === 0 ? (
+              <p className="profile-bio">Nicio activitate recentă.</p>
+            ) : (
+              activity.map((a) => (
+                <div key={a.id} className="activity-item">
+                  <div className="activity-item__dot" />
+                  <div className="activity-item__body">
+                    <p className="activity-item__text">{a.text}</p>
+                    <span className="activity-item__time">{a.time}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </section>
       </div>
