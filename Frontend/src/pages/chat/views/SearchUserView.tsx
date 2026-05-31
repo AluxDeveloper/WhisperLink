@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import './SearchUserView.css'
 import { friendsApi } from '../../../api/friends.api'
 import type { FriendDto } from '../../../api/friends.api'
+import { useChatStore } from '../../../store/ChatStore'
 
 function getToken(): string {
   return localStorage.getItem('token') ?? ''
@@ -14,9 +15,15 @@ const STATUS_LABELS: Record<string, string> = {
   offline: 'Offline',
 }
 
-export function SearchUserView() {
+interface SearchUserViewProps {
+  onStartChat?: () => void
+}
+
+export function SearchUserView({ onStartChat }: SearchUserViewProps) {
   const [query, setQuery] = useState('')
   const [users, setUsers] = useState<FriendDto[]>([])
+  const [sent, setSent] = useState<Set<string>>(new Set())
+  const { loadConversation } = useChatStore()
 
   useEffect(() => {
     const token = getToken()
@@ -35,7 +42,24 @@ export function SearchUserView() {
     : users
 
   const getInitials = (name?: string) =>
-    (name ?? '??').split(' ').map(w => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '??'
+    (name ?? '??').split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '??'
+
+  function handleAddFriend(user: FriendDto) {
+    friendsApi.sendRequest(user.id, getToken())
+      .then(() => setSent(prev => new Set(prev).add(user.id)))
+      .catch(() => {})
+  }
+
+  function handleMessage(user: FriendDto) {
+    loadConversation(
+      user.id,
+      user.name ?? '',
+      user.status ?? 'offline',
+      getInitials(user.name),
+      'linear-gradient(135deg, #8a2be2, #ff007f)',
+    )
+    onStartChat?.()
+  }
 
   return (
     <div className="search-view">
@@ -79,33 +103,40 @@ export function SearchUserView() {
       )}
 
       <div className="user-cards">
-        {results.map((user) => (
-          <div key={user.id} className="user-card">
-            <div className="user-card__avatar-wrap">
-              <div className="user-card__avatar">{getInitials(user.name)}</div>
-              <span className={`user-card__dot user-card__dot--${user.status ?? 'offline'}`} />
+        {results.map((user) => {
+          const isSent = sent.has(user.id)
+          return (
+            <div key={user.id} className="user-card">
+              <div className="user-card__avatar-wrap">
+                <div className="user-card__avatar">{getInitials(user.name)}</div>
+                <span className={`user-card__dot user-card__dot--${user.status ?? 'offline'}`} />
+              </div>
+              <div className="user-card__info">
+                <span className="user-card__name">{user.name ?? ''}</span>
+                <span className="user-card__role">{user.role ?? ''}</span>
+                <span className="user-card__status">{STATUS_LABELS[user.status ?? 'offline'] ?? 'Offline'}</span>
+              </div>
+              <div className="user-card__actions">
+                <button
+                  className={`card-btn card-btn--ghost ${isSent ? 'card-btn--sent' : ''}`}
+                  onClick={() => !isSent && handleAddFriend(user)}
+                  disabled={isSent}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                  {isSent ? 'Sent' : 'Add Friend'}
+                </button>
+                <button className="card-btn card-btn--accent" onClick={() => handleMessage(user)}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  Message
+                </button>
+              </div>
             </div>
-            <div className="user-card__info">
-              <span className="user-card__name">{user.name ?? ''}</span>
-              <span className="user-card__role">{user.role ?? ''}</span>
-              <span className="user-card__status">{STATUS_LABELS[user.status ?? 'offline'] ?? 'Offline'}</span>
-            </div>
-            <div className="user-card__actions">
-              <button className="card-btn card-btn--ghost" onClick={() => friendsApi.sendRequest(user.id, getToken()).catch(() => {})}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
-                Add Friend
-              </button>
-              <button className="card-btn card-btn--accent">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                Message
-              </button>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
