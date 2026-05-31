@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react'
-import { adminApi, type AdminStats, type AdminUserDto } from '../../api/admin.api'
+import { adminApi, type AdminUserDto } from '../../api/admin.api'
 import './AdminDashboard.css'
 
+interface Stats {
+  totalUsers: number
+  onlineUsers: number
+  totalMessages: number
+  totalFriendships: number
+}
+
 export function AdminDashboard() {
-  const [stats, setStats] = useState<AdminStats | null>(null)
+  const [stats, setStats] = useState<Stats | null>(null)
   const [users, setUsers] = useState<AdminUserDto[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -17,12 +24,21 @@ export function AdminDashboard() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [statsData, usersData] = await Promise.all([
-        adminApi.getStats(),
+
+      const [usersData, statsRes] = await Promise.all([
         adminApi.getAllUsers(token),
+        fetch('http://localhost:8080/api/user/stats', {
+          headers: { Authorization: `Bearer ${token}` }
+        }).then(r => r.json())
       ])
-      setStats(statsData)
+
       setUsers(usersData)
+      setStats({
+        totalUsers: usersData.length,
+        onlineUsers: usersData.filter((u: AdminUserDto) => u.presence === 'online').length,
+        totalMessages: statsRes.messages ?? 0,
+        totalFriendships: statsRes.friends ?? 0,
+      })
     } catch (error) {
       console.error('Failed to load admin data:', error)
     } finally {
@@ -38,7 +54,6 @@ export function AdminDashboard() {
       alert('User deleted successfully')
     } catch (error) {
       alert('Failed to delete user')
-      console.error(error)
     }
   }
 
