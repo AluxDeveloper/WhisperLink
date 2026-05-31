@@ -203,6 +203,19 @@ namespace WhisperLink.Api.Controllers
 
             return Ok(new { message = "User deleted successfully" });
         }
+
+        [HttpDelete("admin/{id}")]
+        public async Task<IActionResult> AdminDeleteUser(int id)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized(new { message = "Invalid token" });
+
+            var result = await _userExecution.DeleteUserAsync(id);
+            if (!result) return NotFound(new { message = "User not found" });
+
+            return Ok(new { message = "User deleted successfully" });
+        }
     }
 
     public class UpdateStatusRequest
