@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { ChatWorkspaceModel, ChatUser, ConversationPreview, ActiveConversation, RoomMessage } from '../types'
+import type { ChatWorkspaceModel, ChatUser, ConversationPreview, RoomMessage } from '../types'
 import { chatApi } from '../api/chat.api'
-import type { ConversationDto, MessageDto } from '../api/chat.api'
+import type { ConversationDto } from '../api/chat.api'
 import { mockChatWorkspace } from '../mock/chat.mock'
 import * as signalR from '@microsoft/signalr'
 
@@ -100,14 +100,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   })
 
-  // Referință la conversația activă pentru SignalR handlers
   const activeConvIdRef = useRef<string>('')
 
   useEffect(() => {
     activeConvIdRef.current = workspace.activeConversation.id
   }, [workspace.activeConversation.id])
 
-  // Conectare SignalR
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -117,15 +115,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       .withAutomaticReconnect()
       .build()
 
-    // Primești un mesaj nou
     connection.on('ReceiveMessage', (msg: any) => {
       const newMessage = messageToRoomMessage(msg)
       const senderId = String(msg.senderId ?? msg.authorId)
 
       setWorkspace(prev => {
-        // Dacă conversația activă e cu cel care a trimis mesajul
         const isActiveConv = prev.activeConversation.id === senderId
-
         return {
           ...prev,
           activeConversation: isActiveConv
@@ -140,7 +135,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       })
     })
 
-    // Confirmare mesaj trimis
     connection.on('MessageSent', (msg: any) => {
       const newMessage = messageToRoomMessage(msg)
       setWorkspace(prev => ({
@@ -184,7 +178,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => { connection.stop() }
   }, [])
 
-  // Încarcă conversațiile la mount
   useEffect(() => {
     const token = getToken()
     if (!token) return
@@ -221,7 +214,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages: [],
         participants: [otherUser, currentUserChat],
         composerHint: 'Scrie un mesaj... (Enter pentru trimite)',
-      }
+      },
+      conversations: prev.conversations.map(c =>
+        c.id === conversationId ? { ...c, unreadCount: 0 } : c
+      )
     }))
 
     chatApi.getMessages(conversationId, token).then(messages => {
@@ -234,7 +230,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }))
     }).catch(() => {})
 
-    // Adaugă conversația în listă dacă nu există
     setWorkspace(prev => {
       const exists = prev.conversations.find(c => c.id === conversationId)
       if (exists) return prev
@@ -255,19 +250,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   function sendMessage(text: string) {
-  const conversationId = workspace.activeConversation.id
-  if (!conversationId) return
+    const conversationId = workspace.activeConversation.id
+    if (!conversationId) return
 
-  const connection = connectionRef.current
-  if (connection && connection.state === signalR.HubConnectionState.Connected) {
-    // Trimite DOAR prin SignalR — MessageSent callback va adăuga mesajul în UI
-    // NU adăugăm mesajul manual aici ca să evităm duplicatele
-    connection.invoke('SendMessage', parseInt(conversationId), text)
-      .catch(() => sendViaRest(text, conversationId))
-  } else {
-    sendViaRest(text, conversationId)
+    const connection = connectionRef.current
+    if (connection && connection.state === signalR.HubConnectionState.Connected) {
+      connection.invoke('SendMessage', parseInt(conversationId), text)
+        .catch(() => sendViaRest(text, conversationId))
+    } else {
+      sendViaRest(text, conversationId)
+    }
   }
-}
 
   function sendViaRest(text: string, conversationId: string) {
     const token = getToken()
