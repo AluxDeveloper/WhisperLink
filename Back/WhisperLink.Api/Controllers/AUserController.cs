@@ -92,7 +92,7 @@ namespace WhisperLink.Api.Controllers
                 bio = user.Bio,
                 role = user.JobRole,
                 avatarUrl = user.ProfilePictureUrl,
-                status = user.Presence
+                status = user.Presence.ToString().ToLower()
             });
         }
 
@@ -101,7 +101,18 @@ namespace WhisperLink.Api.Controllers
         {
             var user = await _userExecution.GetUserByIdAsync(id);
             if (user == null) return NotFound(new { message = "User not found" });
-            return Ok(user);
+
+            return Ok(new
+            {
+                id = user.Id.ToString(),
+                name = user.DisplayName,
+                handle = user.Handle,
+                email = user.Email,
+                bio = user.Bio,
+                role = user.JobRole,
+                avatarUrl = user.ProfilePictureUrl,
+                status = user.Presence.ToString().ToLower()
+            });
         }
 
         [HttpPatch("me")]
@@ -123,7 +134,7 @@ namespace WhisperLink.Api.Controllers
                 bio = updatedUser.Bio,
                 role = updatedUser.JobRole,
                 avatarUrl = updatedUser.ProfilePictureUrl,
-                status = updatedUser.Presence
+                status = updatedUser.Presence.ToString().ToLower()
             });
         }
 
