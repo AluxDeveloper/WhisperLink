@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using WhisperLink.BusinessLayer.Core.Executions;
+using WhisperLink.DataAccess.Context;
 using WhisperLink.Domain.Models.Messages;
 
 namespace WhisperLink.Api.Controllers
@@ -14,10 +16,12 @@ namespace WhisperLink.Api.Controllers
     public class MessageController : ControllerBase
     {
         private readonly MessageExecution _messageExecution;
+        private readonly AppDbContext _context;
 
-        public MessageController(MessageExecution messageExecution)
+        public MessageController(MessageExecution messageExecution, AppDbContext context)
         {
             _messageExecution = messageExecution;
+            _context = context;
         }
 
         [HttpGet("api/conversations")]
@@ -61,6 +65,36 @@ namespace WhisperLink.Api.Controllers
             });
 
             return Ok(result);
+        }
+
+        [HttpGet("api/user/stats")]
+        public async Task<IActionResult> GetUserStats()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid token" });
+
+            var conversations = await _context.Messages
+                .Where(m => m.SenderId == userId || m.ReceiverId == userId)
+                .Select(m => m.SenderId == userId ? m.ReceiverId : m.SenderId)
+                .Distinct()
+                .CountAsync(); ;
+
+            var messages = await _context.Messages
+                .Where(m => m.SenderId == userId || m.ReceiverId == userId)
+                .CountAsync();
+
+            var friends = await _context.Friendships
+                .Where(f => (f.RequesterId == userId || f.AddresseeId == userId)
+                    && f.Status == Domain.Enums.FriendshipStatus.Accepted)
+                .CountAsync();
+
+            return Ok(new
+            {
+                friends,
+                conversations,
+                messages
+            });
         }
 
         [HttpPost("api/messages")]
