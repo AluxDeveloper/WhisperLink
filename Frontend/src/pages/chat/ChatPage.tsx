@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ViewId } from '../../types'
 import { ChatProvider } from '../../store/ChatStore'
 import { ConversationList, ChatWindow, Sidebar } from '../../components/chat'
@@ -18,10 +18,17 @@ interface ChatPageProps {
 }
 
 function ChatPageContent({ onBack }: ChatPageProps) {
-  const [currentView, setCurrentView] = useState<ViewId>('chat')
+  const [currentView, setCurrentView] = useState<ViewId>(() => {
+    const saved = localStorage.getItem('currentView') as ViewId | null
+    return saved ?? 'chat'
+  })
 
   const { brandName, currentUser, conversations } = useConversations()
   const { activeConversation } = useMessages()
+
+  useEffect(() => {
+    localStorage.setItem('currentView', currentView)
+  }, [currentView])
 
   return (
     <main className="chat-page">
@@ -47,10 +54,8 @@ function ChatPageContent({ onBack }: ChatPageProps) {
           </>
         )}
 
-        {currentView === 'new-chat' && (
-          <NewChatView onStartChat={() => setCurrentView('chat')} />
-        )}
-        {currentView === 'search'        && <SearchUserView />}
+        {currentView === 'search' && <SearchUserView onStartChat={() => setCurrentView('chat')} />}
+        {currentView === 'new-chat' && (<NewChatView onStartChat={() => setCurrentView('chat')} />)}
         {currentView === 'notifications' && <NotificationsView />}
         {currentView === 'settings'      && <SettingsView />}
         {currentView === 'friends'       && <FriendsView />}
