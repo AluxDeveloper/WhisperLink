@@ -63,7 +63,7 @@ function conversationDtoToPreview(dto: ConversationDto): ConversationPreview {
       ? new Date(dto.lastMessageTime).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
       : '',
     tag: '',
-    unreadCount: dto.unreadCount,
+    unreadCount: 0,
     avatarText: dto.title ? dto.title.slice(0, 2).toUpperCase() : '??',
     accent: 'linear-gradient(135deg, #8a2be2, #ff007f)',
     presence: 'offline',
