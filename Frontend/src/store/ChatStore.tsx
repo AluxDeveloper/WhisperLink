@@ -11,6 +11,9 @@ const HUB_URL = 'http://localhost:8080/chatHub'
 interface ChatContextType extends ChatWorkspaceModel {
   loadConversation: (conversationId: string, title: string, presence: string, avatarText: string, accent: string) => void
   sendMessage: (text: string) => void
+  onNewMessage: (handler: (msg: any) => void) => () => void
+  onUserOnline: (handler: (userId: string) => void) => () => void
+  onUserOffline: (handler: (userId: string) => void) => () => void
 }
 
 const ChatContext = createContext<ChatContextType | null>(null)
@@ -40,7 +43,6 @@ function backendUserToChatUser(u: BackendUser): ChatUser {
   const initials = u.name
     ? u.name.split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2)
     : (u.handle ?? '??').replace('@', '').slice(0, 2).toUpperCase()
-
   return {
     id: String(u.id),
     name: u.name ?? '',
@@ -81,6 +83,9 @@ function messageToRoomMessage(msg: any): RoomMessage {
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const connectionRef = useRef<signalR.HubConnection | null>(null)
+  const messageHandlersRef = useRef<Set<(msg: any) => void>>(new Set())
+  const userOnlineHandlersRef = useRef<Set<(userId: string) => void>>(new Set())
+  const userOfflineHandlersRef = useRef<Set<(userId: string) => void>>(new Set())
 
   const [workspace, setWorkspace] = useState<ChatWorkspaceModel>(() => {
     const stored = getStoredUser()
@@ -118,7 +123,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     connection.on('ReceiveMessage', (msg: any) => {
       const newMessage = messageToRoomMessage(msg)
       const senderId = String(msg.senderId ?? msg.authorId)
-
+      messageHandlersRef.current.forEach(h => h(msg))
       setWorkspace(prev => {
         const isActiveConv = prev.activeConversation.id === senderId
         return {
@@ -152,6 +157,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     })
 
     connection.on('UserOnline', (userId: string) => {
+      userOnlineHandlersRef.current.forEach(h => h(userId))
       setWorkspace(prev => ({
         ...prev,
         conversations: prev.conversations.map(c =>
@@ -161,6 +167,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     })
 
     connection.on('UserOffline', (userId: string) => {
+      userOfflineHandlersRef.current.forEach(h => h(userId))
       setWorkspace(prev => ({
         ...prev,
         conversations: prev.conversations.map(c =>
@@ -181,12 +188,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = getToken()
     if (!token) return
-
     chatApi.getConversations(token).then(conversations => {
       const previews: ConversationPreview[] = conversations.map(conversationDtoToPreview)
       setWorkspace(prev => ({ ...prev, conversations: previews }))
     }).catch(() => {})
   }, [])
+
+  function onNewMessage(handler: (msg: any) => void) {
+    messageHandlersRef.current.add(handler)
+    return () => { messageHandlersRef.current.delete(handler) }
+  }
+
+  function onUserOnline(handler: (userId: string) => void) {
+    userOnlineHandlersRef.current.add(handler)
+    return () => { userOnlineHandlersRef.current.delete(handler) }
+  }
+
+  function onUserOffline(handler: (userId: string) => void) {
+    userOfflineHandlersRef.current.add(handler)
+    return () => { userOfflineHandlersRef.current.delete(handler) }
+  }
 
   function loadConversation(conversationId: string, title: string, presence: string, avatarText: string, accent: string) {
     const token = getToken()
@@ -252,7 +273,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   function sendMessage(text: string) {
     const conversationId = workspace.activeConversation.id
     if (!conversationId) return
-
     const connection = connectionRef.current
     if (connection && connection.state === signalR.HubConnectionState.Connected) {
       connection.invoke('SendMessage', parseInt(conversationId), text)
@@ -266,7 +286,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const token = getToken()
     const stored = getStoredUser()
     if (!stored) return
-
     chatApi.sendMessage({ conversationId, text }, token).then(msg => {
       const newMessage = messageToRoomMessage(msg)
       setWorkspace(prev => ({
@@ -285,7 +304,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ChatContext.Provider value={{ ...workspace, loadConversation, sendMessage }}>
+    <ChatContext.Provider value={{ ...workspace, loadConversation, sendMessage, onNewMessage, onUserOnline, onUserOffline }}>
       {children}
     </ChatContext.Provider>
   )
