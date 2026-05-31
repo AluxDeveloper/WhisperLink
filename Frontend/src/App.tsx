@@ -9,14 +9,15 @@ type AppPage = 'landing' | 'login' | 'register' | 'chat' | 'admin'
 
 function App() {
   const [page, setPage] = useState<AppPage>(() => {
-    // La refresh verifică dacă există token valid
     const token = localStorage.getItem('token')
     const user = localStorage.getItem('user')
-    if (token && user) return 'chat'
-    return 'landing'
+    if (!token || !user) return 'landing'
+    const saved = localStorage.getItem('currentPage') as AppPage | null
+    return saved ?? 'chat'
   })
 
   useEffect(() => {
+    localStorage.setItem('currentPage', page)
     document.body.style.overflow = page === 'chat' || page === 'admin' ? 'hidden' : 'auto'
     return () => { document.body.style.overflow = '' }
   }, [page])
@@ -24,11 +25,12 @@ function App() {
   function handleLogout() {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    localStorage.removeItem('currentPage')
+    localStorage.removeItem('currentView')
     setPage('landing')
   }
 
   if (page === 'admin') return <AdminDashboard />
-
   if (page === 'chat') return <ChatPage onBack={handleLogout} />
 
   if (page === 'register') return (
