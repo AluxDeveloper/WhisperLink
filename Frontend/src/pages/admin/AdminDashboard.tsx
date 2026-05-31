@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { adminApi, type AdminUserDto } from '../../api/admin.api'
+import { adminApi } from '../../api/admin.api'
 import './AdminDashboard.css'
 
 interface Stats {
@@ -9,9 +9,19 @@ interface Stats {
   totalFriendships: number
 }
 
+interface UserRow {
+  id: string
+  name: string
+  handle: string
+  email: string
+  role: string | null
+  avatarUrl: string | null
+  status: string
+}
+
 export function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
-  const [users, setUsers] = useState<AdminUserDto[]>([])
+  const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -32,10 +42,10 @@ export function AdminDashboard() {
         }).then(r => r.json())
       ])
 
-      setUsers(usersData)
+      setUsers([...usersData].sort((a: any, b: any) => parseInt(a.id) - parseInt(b.id)))
       setStats({
         totalUsers: usersData.length,
-        onlineUsers: usersData.filter((u: AdminUserDto) => u.presence === 'online').length,
+        onlineUsers: usersData.filter((u: UserRow) => u.status === 'online').length,
         totalMessages: statsRes.messages ?? 0,
         totalFriendships: statsRes.friends ?? 0,
       })
@@ -46,10 +56,10 @@ export function AdminDashboard() {
     }
   }
 
-  const handleDeleteUser = async (userId: number, username: string) => {
-    if (!confirm(`Are you sure you want to delete user "${username}"?`)) return
+  const handleDeleteUser = async (userId: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete user "${name}"?`)) return
     try {
-      await adminApi.deleteUser(userId, token)
+      await adminApi.deleteUser(parseInt(userId), token)
       setUsers(users.filter(u => u.id !== userId))
       alert('User deleted successfully')
     } catch (error) {
@@ -58,9 +68,9 @@ export function AdminDashboard() {
   }
 
   const filteredUsers = users.filter(u =>
-    (u.username ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (u.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (u.email ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (u.displayName ?? '').toLowerCase().includes(searchQuery.toLowerCase())
+    (u.handle ?? '').toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   if (loading) {
@@ -112,12 +122,11 @@ export function AdminDashboard() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Username</th>
-                <th>Email</th>
                 <th>Name</th>
+                <th>Handle</th>
+                <th>Email</th>
                 <th>Role</th>
                 <th>Status</th>
-                <th>Created</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -125,28 +134,26 @@ export function AdminDashboard() {
               {filteredUsers.map((user) => (
                 <tr key={user.id}>
                   <td>{user.id}</td>
+                  <td>{user.name ?? '-'}</td>
                   <td className="username-cell">
-                    <span className={`status-dot ${user.presence === 'online' ? 'online' : 'offline'}`} />
-                    {user.username}
+                    <span className={`status-dot ${user.status === 'online' ? 'online' : 'offline'}`} />
+                    {user.handle ?? '-'}
                   </td>
                   <td>{user.email}</td>
-                  <td>{user.displayName ?? '-'}</td>
                   <td>
-                    <span className={`role-badge role-${(user.role ?? 'user').toLowerCase()}`}>
+                    <span className="role-badge role-user">
                       {user.role ?? 'User'}
                     </span>
                   </td>
                   <td>
-                    <span className={`status-badge ${user.presence === 'online' ? 'online' : 'offline'}`}>
-                      {user.presence === 'online' ? 'Online' : 'Offline'}
+                    <span className={`status-badge ${user.status === 'online' ? 'online' : 'offline'}`}>
+                      {user.status === 'online' ? 'Online' : 'Offline'}
                     </span>
                   </td>
-                  <td>{new Date(user.createdAt).toLocaleDateString()}</td>
                   <td className="actions-cell">
                     <button
                       className="btn-delete"
-                      onClick={() => handleDeleteUser(user.id, user.username)}
-                      disabled={user.role === 'Admin'}
+                      onClick={() => handleDeleteUser(user.id, user.name)}
                     >
                       Delete
                     </button>
