@@ -1,7 +1,3 @@
-// ─── API Client ───────────────────────────────────────────────────────────────
-// Toate apelurile către backend trec prin acest fișier.
-// Schimbă BASE_URL când conectezi backend-ul real.
-
 const BASE_URL = 'http://localhost:8080/api'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -28,6 +24,16 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
     headers,
     body: body ? JSON.stringify(body) : undefined,
   })
+
+  // Token expirat — redirectează la login
+  if (response.status === 401) {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('currentPage')
+    localStorage.removeItem('currentView')
+    window.location.href = '/'
+    throw new Error('Unauthorized')
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Network error' }))
