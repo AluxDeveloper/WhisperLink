@@ -8,7 +8,6 @@ using WhisperLink.Domain.Models.Messages;
 
 namespace WhisperLink.Api.Hubs
 {
-    // SignalR Hub pentru real-time messaging
     [Authorize]
     public class ChatHub : Hub
     {
@@ -19,42 +18,32 @@ namespace WhisperLink.Api.Hubs
             _messageExecution = messageExecution;
         }
 
-        // Când user se conectează la hub
         public override async Task OnConnectedAsync()
         {
             var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
             if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
             {
-                // Notifică toți ceilalți că user-ul e online
                 await Clients.Others.SendAsync("UserOnline", userId);
             }
-
             await base.OnConnectedAsync();
         }
 
-        // Când user se deconectează
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
             if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
             {
-                // Notifică toți ceilalți că user-ul e offline
                 await Clients.Others.SendAsync("UserOffline", userId);
             }
-
             await base.OnDisconnectedAsync(exception);
         }
 
-        // Trimite mesaj prin SignalR
         public async Task SendMessage(int receiverId, string content)
         {
             var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int senderId))
                 return;
 
-            // Salvează mesajul în database
             var sendMessageDto = new SendMessageDto
             {
                 ReceiverId = receiverId,
@@ -64,14 +53,16 @@ namespace WhisperLink.Api.Hubs
             var message = await _messageExecution.SendMessageAsync(senderId, sendMessageDto);
             if (message == null) return;
 
-            // Trimite mesajul LIVE către receiver
+            // Trimite mesajul către receiver
             await Clients.User(receiverId.ToString()).SendAsync("ReceiveMessage", message);
 
             // Confirmare către sender
             await Clients.Caller.SendAsync("MessageSent", message);
+
+            // Notifică receiver că mesajul a fost livrat
+            await Clients.Caller.SendAsync("MessageDelivered", message.Id.ToString());
         }
 
-        // Marchează mesaj ca citit
         public async Task MarkAsRead(int messageId)
         {
             var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -79,12 +70,30 @@ namespace WhisperLink.Api.Hubs
                 return;
 
             var result = await _messageExecution.MarkMessageAsReadAsync(messageId, userId);
-
             if (result)
             {
-                // Notifică toată lumea că mesajul a fost citit
                 await Clients.All.SendAsync("MessageRead", messageId, userId);
+                // Notifică sender-ul că mesajul a fost văzut
+                await Clients.All.SendAsync("MessageSeen", messageId.ToString());
             }
+        }
+
+        public async Task StartTyping(int receiverId)
+        {
+            var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int senderId))
+                return;
+
+            await Clients.User(receiverId.ToString()).SendAsync("UserTyping", senderId.ToString());
+        }
+
+        public async Task StopTyping(int receiverId)
+        {
+            var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int senderId))
+                return;
+
+            await Clients.User(receiverId.ToString()).SendAsync("UserStoppedTyping", senderId.ToString());
         }
     }
 }
