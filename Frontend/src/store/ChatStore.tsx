@@ -125,15 +125,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const senderId = String(msg.senderId ?? msg.authorId)
       messageHandlersRef.current.forEach(h => h(msg))
       setWorkspace(prev => {
-        const isActiveConv = prev.activeConversation.id === senderId
+        const activeId = String(prev.activeConversation.id)
+        const isActiveConv = activeId === senderId
         return {
           ...prev,
           activeConversation: isActiveConv
             ? { ...prev.activeConversation, messages: [...prev.activeConversation.messages, newMessage] }
             : prev.activeConversation,
           conversations: prev.conversations.map(c =>
-            c.id === senderId
-              ? { ...c, message: newMessage.text, time: newMessage.time, unreadCount: isActiveConv ? 0 : c.unreadCount + 1 }
+            String(c.id) === senderId
+              ? { ...c, message: newMessage.text, time: newMessage.time, unreadCount: isActiveConv ? 0 : (c.unreadCount ?? 0) + 1 }
               : c
           )
         }
@@ -149,7 +150,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           messages: [...prev.activeConversation.messages, newMessage],
         },
         conversations: prev.conversations.map(c =>
-          c.id === prev.activeConversation.id
+          String(c.id) === String(prev.activeConversation.id)
             ? { ...c, message: newMessage.text, time: newMessage.time }
             : c
         )
@@ -161,7 +162,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setWorkspace(prev => ({
         ...prev,
         conversations: prev.conversations.map(c =>
-          c.id === userId ? { ...c, presence: 'online' as const } : c
+          String(c.id) === String(userId) ? { ...c, presence: 'online' as const } : c
         )
       }))
     })
@@ -171,7 +172,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setWorkspace(prev => ({
         ...prev,
         conversations: prev.conversations.map(c =>
-          c.id === userId ? { ...c, presence: 'offline' as const } : c
+          String(c.id) === String(userId) ? { ...c, presence: 'offline' as const } : c
         )
       }))
     })
