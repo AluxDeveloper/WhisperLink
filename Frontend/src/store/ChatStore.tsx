@@ -121,11 +121,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       .build()
 
     connection.on('ReceiveMessage', (msg: any) => {
+      console.log('ReceiveMessage primit:', msg)
       const newMessage = messageToRoomMessage(msg)
       const senderId = String(msg.senderId ?? msg.authorId)
       messageHandlersRef.current.forEach(h => h(msg))
       setWorkspace(prev => {
         const activeId = String(prev.activeConversation.id)
+        console.log('activeId:', activeId, 'senderId:', senderId, 'match:', activeId === senderId)
         const isActiveConv = activeId === senderId
         return {
           ...prev,
@@ -142,6 +144,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     })
 
     connection.on('MessageSent', (msg: any) => {
+      console.log('MessageSent primit:', msg)
       const newMessage = messageToRoomMessage(msg)
       setWorkspace(prev => ({
         ...prev,
@@ -275,10 +278,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const conversationId = workspace.activeConversation.id
     if (!conversationId) return
     const connection = connectionRef.current
+    console.log('sendMessage called, conversationId:', conversationId)
+    console.log('connection state:', connection?.state)
     if (connection && connection.state === signalR.HubConnectionState.Connected) {
+      console.log('invoking SendMessage via SignalR')
       connection.invoke('SendMessage', parseInt(conversationId), text)
-        .catch(() => sendViaRest(text, conversationId))
+        .then(() => console.log('invoke success'))
+        .catch((err) => {
+          console.log('invoke failed:', err)
+          sendViaRest(text, conversationId)
+        })
     } else {
+      console.log('SignalR not connected, using REST')
       sendViaRest(text, conversationId)
     }
   }
