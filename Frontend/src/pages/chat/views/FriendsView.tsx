@@ -3,7 +3,7 @@ import './FriendsView.css'
 import { friendsApi } from '../../../api/friends.api'
 import type { FriendDto } from '../../../api/friends.api'
 
-type FriendStatus = 'online' | 'focus' | 'away' | 'offline'
+
 
 const STATUS_ORDER: Record<string, number> = { online: 0, focus: 1, away: 2, offline: 3 }
 
@@ -30,7 +30,7 @@ export function FriendsView() {
     if (!token) return
     friendsApi.getFriends(token)
       .then(setFriends)
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   const visible = friends
