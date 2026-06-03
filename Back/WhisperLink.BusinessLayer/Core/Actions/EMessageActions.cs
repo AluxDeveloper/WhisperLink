@@ -13,7 +13,6 @@ using WhisperLink.Domain.Models.Users;
 
 namespace WhisperLink.BusinessLayer.Core.Actions
 {
-    // Logica business pentru messaging
     public class MessageActions : IMessageAction
     {
         private readonly AppDbContext _context;
@@ -25,42 +24,37 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             _mapper = mapper;
         }
 
-        // Send message - trimite mesaj nou
         public async Task<MessageDto?> SendMessageAsync(int senderId, SendMessageDto sendMessageDto)
         {
-            // Verifică că receiver există
             var receiverExists = await _context.Users.AnyAsync(u => u.Id == sendMessageDto.ReceiverId);
             if (!receiverExists) return null;
-
-            // Nu trimiți la tine însuți
             if (senderId == sendMessageDto.ReceiverId) return null;
 
-            // Creează mesaj
             var message = new Message
             {
                 SenderId = senderId,
                 ReceiverId = sendMessageDto.ReceiverId,
                 Content = sendMessageDto.Content,
                 Status = MessageStatus.Sent,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                ReplyToId = sendMessageDto.ReplyToId,
             };
 
             _context.Messages.Add(message);
             await _context.SaveChangesAsync();
 
-            // Încarcă sender și receiver pentru DTO
             var messageWithUsers = await _context.Messages
                 .Include(m => m.Sender)
                 .Include(m => m.Receiver)
+                .Include(m => m.ReplyTo)
+                    .ThenInclude(r => r != null ? r.Sender : null)
                 .FirstOrDefaultAsync(m => m.Id == message.Id);
 
-            return _mapper.Map<MessageDto>(messageWithUsers);
+            return MapToDto(messageWithUsers!);
         }
 
-        // Get conversations - lista de chat-uri cu ultimul mesaj și unread count
         public async Task<IEnumerable<ConversationDto>> GetConversationsAsync(int userId)
         {
-            // Toate mesajele user-ului
             var messages = await _context.Messages
                 .Include(m => m.Sender)
                 .Include(m => m.Receiver)
@@ -68,7 +62,6 @@ namespace WhisperLink.BusinessLayer.Core.Actions
                 .OrderByDescending(m => m.CreatedAt)
                 .ToListAsync();
 
-            // Grupare după "cealaltă persoană"
             var conversations = messages
                 .GroupBy(m => m.SenderId == userId ? m.ReceiverId : m.SenderId)
                 .Select(group =>
@@ -80,7 +73,7 @@ namespace WhisperLink.BusinessLayer.Core.Actions
                     return new ConversationDto
                     {
                         User = _mapper.Map<UserDto>(otherUser),
-                        LastMessage = _mapper.Map<MessageDto>(lastMessage),
+                        LastMessage = MapToDto(lastMessage),
                         UnreadCount = unreadCount
                     };
                 })
@@ -90,12 +83,13 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             return conversations;
         }
 
-        // Get conversation with user - toate mesajele cu o persoană
         public async Task<IEnumerable<MessageDto>> GetConversationWithUserAsync(int userId, int otherUserId)
         {
             var messages = await _context.Messages
                 .Include(m => m.Sender)
                 .Include(m => m.Receiver)
+                .Include(m => m.ReplyTo)
+                    .ThenInclude(r => r != null ? r.Sender : null)
                 .Where(m =>
                     (m.SenderId == userId && m.ReceiverId == otherUserId) ||
                     (m.SenderId == otherUserId && m.ReceiverId == userId)
@@ -103,19 +97,14 @@ namespace WhisperLink.BusinessLayer.Core.Actions
                 .OrderBy(m => m.CreatedAt)
                 .ToListAsync();
 
-            return _mapper.Map<List<MessageDto>>(messages);
+            return messages.Select(MapToDto).ToList();
         }
 
-        // Mark message as read - confirmă citirea
         public async Task<bool> MarkMessageAsReadAsync(int messageId, int userId)
         {
             var message = await _context.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
             if (message == null) return false;
-
-            // Doar receiver-ul poate marca ca citit
             if (message.ReceiverId != userId) return false;
-
-            // Deja citit
             if (message.Status == MessageStatus.Read) return true;
 
             message.Status = MessageStatus.Read;
@@ -125,19 +114,54 @@ namespace WhisperLink.BusinessLayer.Core.Actions
             return true;
         }
 
-        // Delete message - șterge mesaj
         public async Task<bool> DeleteMessageAsync(int messageId, int userId)
         {
             var message = await _context.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
             if (message == null) return false;
-
-            // Doar sender-ul poate șterge
             if (message.SenderId != userId) return false;
 
             _context.Messages.Remove(message);
             await _context.SaveChangesAsync();
 
             return true;
+        }
+
+        public async Task<bool> EditMessageAsync(int messageId, int userId, string newContent)
+        {
+            var message = await _context.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
+            if (message == null) return false;
+            if (message.SenderId != userId) return false;
+
+            message.Content = newContent;
+            message.IsEdited = true;
+            message.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        private MessageDto MapToDto(Message m)
+        {
+            return new MessageDto
+            {
+                Id = m.Id,
+                SenderId = m.SenderId,
+                ReceiverId = m.ReceiverId,
+                Content = m.Content,
+                Status = m.Status,
+                ReadAt = m.ReadAt,
+                CreatedAt = m.CreatedAt,
+                IsEdited = m.IsEdited,
+                ReplyToId = m.ReplyToId,
+                ReplyTo = m.ReplyTo != null ? new ReplyPreviewDto
+                {
+                    Id = m.ReplyTo.Id,
+                    Content = m.ReplyTo.Content,
+                    SenderName = m.ReplyTo.Sender?.DisplayName ?? m.ReplyTo.Sender?.Username ?? "",
+                } : null,
+                Sender = _mapper.Map<UserDto>(m.Sender),
+                Receiver = _mapper.Map<UserDto>(m.Receiver),
+            };
         }
     }
 }

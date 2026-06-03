@@ -4,7 +4,6 @@ using WhisperLink.Domain.Models.Users;
 
 namespace WhisperLink.Domain.Models.Messages
 {
-    // DTO pentru returnare mesaj
     public class MessageDto
     {
         public int Id { get; set; }
@@ -14,9 +13,17 @@ namespace WhisperLink.Domain.Models.Messages
         public MessageStatus Status { get; set; }
         public DateTime? ReadAt { get; set; }
         public DateTime CreatedAt { get; set; }
-
-        // Datele sender-ului și receiver-ului
+        public bool IsEdited { get; set; }
+        public int? ReplyToId { get; set; }
+        public ReplyPreviewDto? ReplyTo { get; set; }
         public UserDto Sender { get; set; } = null!;
         public UserDto Receiver { get; set; } = null!;
+    }
+
+    public class ReplyPreviewDto
+    {
+        public int Id { get; set; }
+        public string Content { get; set; } = string.Empty;
+        public string SenderName { get; set; } = string.Empty;
     }
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import type { ActiveConversation, ChatUser } from '../../../types'
+import type { ActiveConversation, ChatUser, RoomMessage } from '../../../types'
 import { Avatar } from '../../ui'
 import { MessageList } from '../MessageList/MessageList'
 import { useChatStore } from '../../../store/ChatStore'
@@ -12,14 +12,19 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ currentUser, conversation }: ChatWindowProps) {
-  const { sendMessage } = useChatStore()
+  const { sendMessage, sendTyping, typingUsers } = useChatStore()
   const leadUser = conversation.participants[0]
   const [draft, setDraft] = useState('')
+  const [replyTo, setReplyTo] = useState<RoomMessage | null>(null)
+
+  const isTyping = leadUser ? typingUsers[leadUser.id] : false
+  const isOnline = leadUser?.presence === 'online'
 
   function handleSend() {
     if (!draft.trim()) return
-    sendMessage(draft.trim())
+    sendMessage(draft.trim(), replyTo?.id)
     setDraft('')
+    setReplyTo(null)
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -27,9 +32,16 @@ export function ChatWindow({ currentUser, conversation }: ChatWindowProps) {
       e.preventDefault()
       handleSend()
     }
+    if (e.key === 'Escape' && replyTo) {
+      setReplyTo(null)
+    }
   }
 
-  const isOnline = leadUser?.presence === 'online'
+  function handleDraftChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const val = e.target.value
+    setDraft(val)
+    sendTyping(val.length > 0)
+  }
 
   return (
     <section className="chat-window">
@@ -43,8 +55,8 @@ export function ChatWindow({ currentUser, conversation }: ChatWindowProps) {
         />
         <div className="cw-header__info">
           <span className="cw-header__name">{conversation.title}</span>
-          <span className={`cw-header__status ${isOnline ? 'cw-header__status--on' : ''}`}>
-            {isOnline ? 'Online' : conversation.subtitle}
+          <span className={`cw-header__status ${isOnline ? 'cw-header__status--on' : ''} ${isTyping ? 'cw-header__status--typing' : ''}`}>
+            {isTyping ? 'scrie...' : isOnline ? 'Online' : conversation.subtitle}
           </span>
         </div>
         <div className="cw-header__tools">
@@ -71,8 +83,31 @@ export function ChatWindow({ currentUser, conversation }: ChatWindowProps) {
           messages={conversation.messages}
           participants={conversation.participants}
           currentUserId={currentUser.id}
+          onReply={setReplyTo}
         />
       </div>
+
+      {/* Reply bar */}
+      {replyTo && (
+        <div className="cw-reply-bar">
+          <div className="cw-reply-bar__content">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="cw-reply-bar__icon">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            <div className="cw-reply-bar__text">
+              <span className="cw-reply-bar__author">
+                {conversation.participants.find(p => p.id === replyTo.authorId)?.name ?? 'Unknown'}
+              </span>
+              <span className="cw-reply-bar__preview">{replyTo.text}</span>
+            </div>
+          </div>
+          <button className="cw-reply-bar__close" onClick={() => setReplyTo(null)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       <div className="cw-composer">
         <button className="cw-attach" title="Atașează fișier">
@@ -84,7 +119,7 @@ export function ChatWindow({ currentUser, conversation }: ChatWindowProps) {
           className="cw-input"
           rows={1}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={handleDraftChange}
           onKeyDown={handleKeyDown}
           placeholder={conversation.composerHint}
         />

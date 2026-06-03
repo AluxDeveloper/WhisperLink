@@ -21,7 +21,6 @@ namespace WhisperLink.Api.Hubs
         public override async Task OnConnectedAsync()
         {
             var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            Console.WriteLine($"OnConnected: userId={userIdClaim}, connectionId={Context.ConnectionId}");
             if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
             {
                 await Clients.Others.SendAsync("UserOnline", userId);
@@ -32,7 +31,6 @@ namespace WhisperLink.Api.Hubs
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            Console.WriteLine($"OnDisconnected: userId={userIdClaim}");
             if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
             {
                 await Clients.Others.SendAsync("UserOffline", userId);
@@ -40,28 +38,51 @@ namespace WhisperLink.Api.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendMessage(int receiverId, string content)
+        public async Task SendMessage(int receiverId, string content, int? replyToId = null)
         {
             var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int senderId))
                 return;
 
-            Console.WriteLine($"SendMessage: senderId={senderId}, receiverId={receiverId}, content={content}");
-
             var sendMessageDto = new SendMessageDto
             {
                 ReceiverId = receiverId,
-                Content = content
+                Content = content,
+                ReplyToId = replyToId
             };
 
             var message = await _messageExecution.SendMessageAsync(senderId, sendMessageDto);
             if (message == null) return;
 
-            Console.WriteLine($"Trimite ReceiveMessage catre userId={receiverId}");
             await Clients.User(receiverId.ToString()).SendAsync("ReceiveMessage", message);
-            Console.WriteLine($"Trimite MessageSent catre caller userId={senderId}");
             await Clients.Caller.SendAsync("MessageSent", message);
             await Clients.Caller.SendAsync("MessageDelivered", message.Id.ToString());
+        }
+
+        public async Task EditMessage(int messageId, string newContent)
+        {
+            var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return;
+
+            var result = await _messageExecution.EditMessageAsync(messageId, userId, newContent);
+            if (result)
+            {
+                await Clients.All.SendAsync("MessageEdited", new { messageId, newContent });
+            }
+        }
+
+        public async Task DeleteMessage(int messageId)
+        {
+            var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return;
+
+            var result = await _messageExecution.DeleteMessageAsync(messageId, userId);
+            if (result)
+            {
+                await Clients.All.SendAsync("MessageDeleted", messageId.ToString());
+            }
         }
 
         public async Task MarkAsRead(int messageId)

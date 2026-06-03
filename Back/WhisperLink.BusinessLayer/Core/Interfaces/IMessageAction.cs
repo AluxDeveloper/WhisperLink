@@ -11,5 +11,6 @@ namespace WhisperLink.BusinessLayer.Core.Interfaces
         Task<IEnumerable<MessageDto>> GetConversationWithUserAsync(int userId, int otherUserId);
         Task<bool> MarkMessageAsReadAsync(int messageId, int userId);
         Task<bool> DeleteMessageAsync(int messageId, int userId);
+        Task<bool> EditMessageAsync(int messageId, int userId, string newContent);
     }
 }

@@ -1,6 +1,6 @@
 export type PresenceState = 'online' | 'focus' | 'away' | 'offline'
 
-export type ViewId = 'chat' | 'new-chat' | 'search' | 'notifications' | 'settings' | 'friends' | 'add-friend' | 'admin' | 'profile'
+export type ViewId = 'chat' | 'new-chat' | 'search' | 'notifications' | 'settings' | 'friends' | 'add-friend' | 'profile'
 
 export interface ChatUser {
   id: string
@@ -46,6 +46,14 @@ export interface RoomMessage {
   text: string
   time: string
   badge?: string
+  status?: 'sent' | 'delivered' | 'seen'
+  replyTo?: {
+    id: string
+    authorName: string
+    text: string
+  }
+  edited?: boolean
+  deleted?: boolean
 }
 
 export interface SharedFile {

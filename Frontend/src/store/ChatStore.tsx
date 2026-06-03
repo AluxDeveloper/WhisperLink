@@ -10,10 +10,14 @@ const HUB_URL = 'http://localhost:8080/chatHub'
 
 interface ChatContextType extends ChatWorkspaceModel {
   loadConversation: (conversationId: string, title: string, presence: string, avatarText: string, accent: string) => void
-  sendMessage: (text: string) => void
+  sendMessage: (text: string, replyToId?: string) => void
+  editMessage: (messageId: string, newText: string) => void
+  deleteMessage: (messageId: string) => void
   onNewMessage: (handler: (msg: any) => void) => () => void
   onUserOnline: (handler: (userId: string) => void) => () => void
   onUserOffline: (handler: (userId: string) => void) => () => void
+  typingUsers: Record<string, boolean>
+  sendTyping: (isTyping: boolean) => void
 }
 
 const ChatContext = createContext<ChatContextType | null>(null)
@@ -78,6 +82,14 @@ function messageToRoomMessage(msg: any): RoomMessage {
     authorId: String(msg.senderId ?? msg.authorId),
     text: msg.content ?? msg.text,
     time: new Date(msg.createdAt).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
+    status: 'sent',
+    edited: msg.isEdited ?? false,
+    deleted: msg.isDeleted ?? false,
+    replyTo: msg.replyTo ? {
+      id: String(msg.replyTo.id),
+      authorName: msg.replyTo.senderName ?? '',
+      text: msg.replyTo.content ?? '',
+    } : undefined,
   }
 }
 
@@ -86,6 +98,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const messageHandlersRef = useRef<Set<(msg: any) => void>>(new Set())
   const userOnlineHandlersRef = useRef<Set<(userId: string) => void>>(new Set())
   const userOfflineHandlersRef = useRef<Set<(userId: string) => void>>(new Set())
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({})
 
   const [workspace, setWorkspace] = useState<ChatWorkspaceModel>(() => {
     const stored = getStoredUser()
@@ -121,13 +136,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       .build()
 
     connection.on('ReceiveMessage', (msg: any) => {
-      console.log('ReceiveMessage primit:', msg)
       const newMessage = messageToRoomMessage(msg)
       const senderId = String(msg.senderId ?? msg.authorId)
       messageHandlersRef.current.forEach(h => h(msg))
+      setTypingUsers(prev => ({ ...prev, [senderId]: false }))
       setWorkspace(prev => {
         const activeId = String(prev.activeConversation.id)
-        console.log('activeId:', activeId, 'senderId:', senderId, 'match:', activeId === senderId)
         const isActiveConv = activeId === senderId
         return {
           ...prev,
@@ -144,7 +158,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     })
 
     connection.on('MessageSent', (msg: any) => {
-      console.log('MessageSent primit:', msg)
       const newMessage = messageToRoomMessage(msg)
       setWorkspace(prev => ({
         ...prev,
@@ -158,6 +171,62 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             : c
         )
       }))
+    })
+
+    connection.on('MessageDelivered', (messageId: string) => {
+      setWorkspace(prev => ({
+        ...prev,
+        activeConversation: {
+          ...prev.activeConversation,
+          messages: prev.activeConversation.messages.map(m =>
+            m.id === messageId ? { ...m, status: 'delivered' as const } : m
+          )
+        }
+      }))
+    })
+
+    connection.on('MessageSeen', (messageId: string) => {
+      setWorkspace(prev => ({
+        ...prev,
+        activeConversation: {
+          ...prev.activeConversation,
+          messages: prev.activeConversation.messages.map(m =>
+            m.id === messageId ? { ...m, status: 'seen' as const } : m
+          )
+        }
+      }))
+    })
+
+    connection.on('MessageEdited', (data: { messageId: string, newContent: string }) => {
+      setWorkspace(prev => ({
+        ...prev,
+        activeConversation: {
+          ...prev.activeConversation,
+          messages: prev.activeConversation.messages.map(m =>
+            m.id === String(data.messageId) ? { ...m, text: data.newContent, edited: true } : m
+          )
+        }
+      }))
+    })
+
+    connection.on('MessageDeleted', (messageId: string) => {
+      setWorkspace(prev => ({
+        ...prev,
+        activeConversation: {
+          ...prev.activeConversation,
+          messages: prev.activeConversation.messages.map(m =>
+            m.id === String(messageId) ? { ...m, deleted: true, text: 'Mesaj șters' } : m
+          )
+        }
+      }))
+    })
+
+    connection.on('UserTyping', (userId: string) => {
+      setTypingUsers(prev => ({ ...prev, [userId]: true }))
+    })
+
+    connection.on('UserStoppedTyping', (userId: string) => {
+      setTypingUsers(prev => ({ ...prev, [userId]: false }))
     })
 
     connection.on('UserOnline', (userId: string) => {
@@ -211,6 +280,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   function onUserOffline(handler: (userId: string) => void) {
     userOfflineHandlersRef.current.add(handler)
     return () => { userOfflineHandlersRef.current.delete(handler) }
+  }
+
+  function sendTyping(isTyping: boolean) {
+    const connection = connectionRef.current
+    const conversationId = workspace.activeConversation.id
+    if (!connection || connection.state !== signalR.HubConnectionState.Connected || !conversationId) return
+
+    if (isTyping) {
+      connection.invoke('StartTyping', parseInt(conversationId)).catch(() => {})
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = setTimeout(() => {
+        connection.invoke('StopTyping', parseInt(conversationId)).catch(() => {})
+      }, 3000)
+    } else {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+      connection.invoke('StopTyping', parseInt(conversationId)).catch(() => {})
+    }
   }
 
   function loadConversation(conversationId: string, title: string, presence: string, avatarText: string, accent: string) {
@@ -274,24 +360,51 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  function sendMessage(text: string) {
+  function sendMessage(text: string, replyToId?: string) {
     const conversationId = workspace.activeConversation.id
     if (!conversationId) return
+    sendTyping(false)
     const connection = connectionRef.current
-    console.log('sendMessage called, conversationId:', conversationId)
-    console.log('connection state:', connection?.state)
     if (connection && connection.state === signalR.HubConnectionState.Connected) {
-      console.log('invoking SendMessage via SignalR')
-      connection.invoke('SendMessage', parseInt(conversationId), text)
-        .then(() => console.log('invoke success'))
-        .catch((err) => {
-          console.log('invoke failed:', err)
-          sendViaRest(text, conversationId)
-        })
+      connection.invoke('SendMessage', parseInt(conversationId), text, replyToId ? parseInt(replyToId) : null)
+        .catch(() => sendViaRest(text, conversationId))
     } else {
-      console.log('SignalR not connected, using REST')
       sendViaRest(text, conversationId)
     }
+  }
+
+  function editMessage(messageId: string, newText: string) {
+    const connection = connectionRef.current
+    if (connection && connection.state === signalR.HubConnectionState.Connected) {
+      connection.invoke('EditMessage', parseInt(messageId), newText).catch(() => {})
+    }
+    // Optimistic update
+    setWorkspace(prev => ({
+      ...prev,
+      activeConversation: {
+        ...prev.activeConversation,
+        messages: prev.activeConversation.messages.map(m =>
+          m.id === messageId ? { ...m, text: newText, edited: true } : m
+        )
+      }
+    }))
+  }
+
+  function deleteMessage(messageId: string) {
+    const connection = connectionRef.current
+    if (connection && connection.state === signalR.HubConnectionState.Connected) {
+      connection.invoke('DeleteMessage', parseInt(messageId)).catch(() => {})
+    }
+    // Optimistic update
+    setWorkspace(prev => ({
+      ...prev,
+      activeConversation: {
+        ...prev.activeConversation,
+        messages: prev.activeConversation.messages.map(m =>
+          m.id === messageId ? { ...m, deleted: true, text: 'Mesaj șters' } : m
+        )
+      }
+    }))
   }
 
   function sendViaRest(text: string, conversationId: string) {
@@ -316,7 +429,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ChatContext.Provider value={{ ...workspace, loadConversation, sendMessage, onNewMessage, onUserOnline, onUserOffline }}>
+    <ChatContext.Provider value={{
+      ...workspace,
+      loadConversation,
+      sendMessage,
+      editMessage,
+      deleteMessage,
+      onNewMessage,
+      onUserOnline,
+      onUserOffline,
+      typingUsers,
+      sendTyping,
+    }}>
       {children}
     </ChatContext.Provider>
   )
