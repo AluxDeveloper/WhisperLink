@@ -38,3 +38,4 @@ dist-ssr
 .vs/
 Backend/
 >>>>>>> 213f5e402a54993cb708c314bfeabd6b88862b0b
+Back/WhisperLink.Api/Properties/launchSettings.json
