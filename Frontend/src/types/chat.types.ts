@@ -1,7 +1,5 @@
 export type PresenceState = 'online' | 'focus' | 'away' | 'offline'
-
-export type ViewId = 'chat' | 'new-chat' | 'search' | 'notifications' | 'settings' | 'friends' | 'add-friend' | 'profile'
-
+export type ViewId = 'chat' | 'new-chat' | 'search' | 'notifications' | 'settings' | 'friends' | 'add-friend' | 'profile' | 'user-profile' | 'admin'
 export interface ChatUser {
   id: string
   name: string

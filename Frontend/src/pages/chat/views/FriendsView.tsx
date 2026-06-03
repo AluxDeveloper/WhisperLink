@@ -3,8 +3,6 @@ import './FriendsView.css'
 import { friendsApi } from '../../../api/friends.api'
 import type { FriendDto } from '../../../api/friends.api'
 
-type FriendStatus = 'online' | 'focus' | 'away' | 'offline'
-
 const STATUS_ORDER: Record<string, number> = { online: 0, focus: 1, away: 2, offline: 3 }
 
 function getToken(): string {
@@ -20,7 +18,11 @@ function getStatusLabel(status: string): string {
   return labels[status] ?? 'Offline'
 }
 
-export function FriendsView() {
+interface FriendsViewProps {
+  onOpenProfile?: (userId: string, meta: { title: string; presence: string; avatarText: string; accent: string }) => void
+}
+
+export function FriendsView({ onOpenProfile }: FriendsViewProps) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'online'>('all')
   const [friends, setFriends] = useState<FriendDto[]>([])
@@ -28,9 +30,7 @@ export function FriendsView() {
   useEffect(() => {
     const token = getToken()
     if (!token) return
-    friendsApi.getFriends(token)
-      .then(setFriends)
-      .catch(() => {})
+    friendsApi.getFriends(token).then(setFriends).catch(() => {})
   }, [])
 
   const visible = friends
@@ -61,16 +61,10 @@ export function FriendsView() {
 
       <div className="friends-controls">
         <div className="friends-filter">
-          <button
-            className={`filter-tab ${filter === 'all' ? 'filter-tab--active' : ''}`}
-            onClick={() => setFilter('all')}
-          >
+          <button className={`filter-tab ${filter === 'all' ? 'filter-tab--active' : ''}`} onClick={() => setFilter('all')}>
             Toți ({friends.length})
           </button>
-          <button
-            className={`filter-tab ${filter === 'online' ? 'filter-tab--active' : ''}`}
-            onClick={() => setFilter('online')}
-          >
+          <button className={`filter-tab ${filter === 'online' ? 'filter-tab--active' : ''}`} onClick={() => setFilter('online')}>
             <span className="online-dot" />
             Online ({onlineCount})
           </button>
@@ -102,14 +96,33 @@ export function FriendsView() {
 
         {visible.map((friend) => (
           <div key={friend.id} className="friend-card">
-            <div className="friend-card__avatar-wrap">
+            <div
+              className="friend-card__avatar-wrap"
+              style={{ cursor: 'pointer' }}
+              onClick={() => onOpenProfile?.(String(friend.id), {
+                title: friend.name,
+                presence: friend.status ?? 'offline',
+                avatarText: getInitials(friend.name),
+                accent: 'linear-gradient(135deg, #8a2be2, #ff007f)',
+              })}
+              title="Vezi profil"
+            >
               <div className="friend-card__avatar" style={{ background: 'linear-gradient(135deg, #8a2be2, #ff007f)' }}>
                 {getInitials(friend.name)}
               </div>
               <span className={`presence-dot presence-dot--${friend.status ?? 'offline'}`} />
             </div>
 
-            <div className="friend-card__info">
+            <div
+              className="friend-card__info"
+              style={{ cursor: 'pointer' }}
+              onClick={() => onOpenProfile?.(String(friend.id), {
+                title: friend.name,
+                presence: friend.status ?? 'offline',
+                avatarText: getInitials(friend.name),
+                accent: 'linear-gradient(135deg, #8a2be2, #ff007f)',
+              })}
+            >
               <span className="friend-card__name">{friend.name}</span>
               <span className="friend-card__handle">{friend.handle}</span>
               <span className="friend-card__role">{friend.role ?? ''}</span>

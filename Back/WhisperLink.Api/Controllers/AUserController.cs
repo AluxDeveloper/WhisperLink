@@ -96,6 +96,46 @@ namespace WhisperLink.Api.Controllers
             });
         }
 
+        [HttpGet("stats")]
+        public async Task<IActionResult> GetMyStats()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid token" });
+
+            var friends = await _context.Friendships
+                .CountAsync(f => (f.RequesterId == userId || f.AddresseeId == userId) && f.Status == FriendshipStatus.Accepted);
+
+            var conversations = await _context.Messages
+                .Where(m => m.SenderId == userId || m.ReceiverId == userId)
+                .Select(m => m.SenderId == userId ? m.ReceiverId : m.SenderId)
+                .Distinct()
+                .CountAsync();
+
+            var messages = await _context.Messages
+                .CountAsync(m => m.SenderId == userId);
+
+            return Ok(new { friends, conversations, messages });
+        }
+
+        [HttpGet("stats/{id}")]
+        public async Task<IActionResult> GetUserStats(int id)
+        {
+            var friends = await _context.Friendships
+                .CountAsync(f => (f.RequesterId == id || f.AddresseeId == id) && f.Status == FriendshipStatus.Accepted);
+
+            var conversations = await _context.Messages
+                .Where(m => m.SenderId == id || m.ReceiverId == id)
+                .Select(m => m.SenderId == id ? m.ReceiverId : m.SenderId)
+                .Distinct()
+                .CountAsync();
+
+            var messages = await _context.Messages
+                .CountAsync(m => m.SenderId == id);
+
+            return Ok(new { friends, conversations, messages });
+        }
+
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUserById(int id)
         {

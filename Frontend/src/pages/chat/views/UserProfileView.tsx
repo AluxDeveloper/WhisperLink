@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import './ProfileView.css'
+import './UserProfileView.css'
 import { userApi } from '../../../api/user.api'
 import { friendsApi } from '../../../api/friends.api'
 
@@ -7,60 +8,56 @@ function getToken(): string {
   return localStorage.getItem('token') ?? ''
 }
 
-interface ActivityItem {
-  id: string
-  text: string
-  time: string
+interface UserProfileViewProps {
+  userId: string
+  onStartChat?: () => void
+  onBack?: () => void
 }
 
-export function ProfileView() {
-  const [editing, setEditing] = useState(false)
-  const [name, setName]       = useState('')
-  const [handle, setHandle]   = useState('')
-  const [role, setRole]       = useState('')
-  const [bio, setBio]         = useState('')
-  const [email, setEmail]     = useState('')
-  const [stats, setStats]     = useState({ friends: 0, conversations: 0, messages: 0 })
-  const [activity, setActivity] = useState<ActivityItem[]>([])
+export function UserProfileView({ userId, onStartChat, onBack }: UserProfileViewProps) {
+  const [name, setName]     = useState('')
+  const [handle, setHandle] = useState('')
+  const [role, setRole]     = useState('')
+  const [bio, setBio]       = useState('')
+  const [email, setEmail]   = useState('')
+  const [status, setStatus] = useState('offline')
+  const [stats, setStats]   = useState({ friends: 0, conversations: 0, messages: 0 })
+  const [activity, setActivity] = useState<{ id: string; text: string; time: string }[]>([])
 
- useEffect(() => {
-  const token = getToken()
-  if (!token) return
+  useEffect(() => {
+    const token = getToken()
+    if (!token || !userId) return
 
-  userApi.getMe(token).then(user => {
-    setName(user.name ?? '')
-    setHandle(user.handle ?? '')
-    setRole(user.role ?? '')
-    setBio(user.bio ?? '')
-    setEmail(user.email ?? '')
-  }).catch(() => {})
+    userApi.getUser(userId, token).then((user: any) => {
+      setName(user.name ?? '')
+      setHandle(user.handle ?? '')
+      setRole(user.role ?? '')
+      setBio(user.bio ?? '')
+      setEmail(user.email ?? '')
+      setStatus(user.status ?? 'offline')
+    }).catch(() => {})
 
-  fetch('http://localhost:8080/api/users/stats', {
-    headers: { Authorization: `Bearer ${token}` }
-  }).then(r => r.json()).then((data: any) => {
-    setStats({ friends: data.friends, conversations: data.conversations, messages: data.messages })
+    fetch(`http://localhost:8080/api/users/stats/${userId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(r => r.json()).then((data: any) => {
+      setStats({ friends: data.friends ?? 0, conversations: data.conversations ?? 0, messages: data.messages ?? 0 })
+    }).catch(() => {})
+
     friendsApi.getFriends(token).then((friends: any[]) => {
-      const acts: ActivityItem[] = friends.slice(0, 4).map((f, i) => ({
+      const acts = friends.slice(0, 4).map((f, i) => ({
         id: `friend-${i}`,
-        text: `Ești prieten cu ${f.name}`,
+        text: `Prieten cu ${f.name}`,
         time: 'Recent'
       }))
       setActivity(acts)
     }).catch(() => {})
-  }).catch(() => {})
-}, [])
-
-  function handleSave() {
-    const token = getToken()
-    if (!token) return
-    userApi.updateProfile({ name, handle, role, bio }, token)
-      .then(() => setEditing(false))
-      .catch(() => {})
-  }
+  }, [userId])
 
   const initials = name
     ? name.split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2)
     : '??'
+
+  const isOnline = status === 'online'
 
   return (
     <div className="profile-view">
@@ -69,55 +66,39 @@ export function ProfileView() {
         <div className="profile-hero__body">
           <div className="profile-avatar-wrap">
             <div className="profile-avatar">{initials}</div>
-            <span className="profile-status-dot" />
+            {isOnline && <span className="profile-status-dot" />}
           </div>
 
           <div className="profile-hero__info">
-            {editing ? (
-              <input className="profile-edit-input profile-edit-input--name" value={name} onChange={(e) => setName(e.target.value)} />
-            ) : (
-              <h2 className="profile-name">{name}</h2>
-            )}
-            {editing ? (
-              <input className="profile-edit-input profile-edit-input--handle" value={handle} onChange={(e) => setHandle(e.target.value)} />
-            ) : (
-              <span className="profile-handle">{handle}</span>
-            )}
-            {editing ? (
-              <input className="profile-edit-input profile-edit-input--role" value={role} onChange={(e) => setRole(e.target.value)} />
-            ) : (
-              <span className="profile-role">{role}</span>
-            )}
+            <h2 className="profile-name">{name}</h2>
+            <span className="profile-handle">{handle}</span>
+            {role && <span className="profile-role">{role}</span>}
           </div>
 
-          <button
-            className={`profile-edit-btn ${editing ? 'profile-edit-btn--save' : ''}`}
-            onClick={() => editing ? handleSave() : setEditing(true)}
-          >
-            {editing ? (
-              <>
-                <svg viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                Salvează
-              </>
-            ) : (
-              <>
+          <div className="user-profile-actions">
+            <button className="user-profile-btn user-profile-btn--message" onClick={onStartChat}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              Trimite mesaj
+            </button>
+            {onBack && (
+              <button className="user-profile-btn" onClick={onBack}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                Editează
-              </>
+                Înapoi
+              </button>
             )}
-          </button>
+          </div>
         </div>
       </div>
 
       <div className="profile-stats">
         {[
-          { label: 'Prieteni',    value: String(stats.friends)       },
+          { label: 'Prieteni',    value: String(stats.friends) },
           { label: 'Conversații', value: String(stats.conversations) },
-          { label: 'Mesaje',      value: String(stats.messages)      },
+          { label: 'Mesaje',      value: String(stats.messages) },
         ].map((s) => (
           <div key={s.label} className="profile-stat">
             <span className="profile-stat__value">{s.value}</span>
@@ -129,11 +110,7 @@ export function ProfileView() {
       <div className="profile-content">
         <section className="profile-section">
           <h3 className="profile-section__title">Despre mine</h3>
-          {editing ? (
-            <textarea className="profile-edit-textarea" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} />
-          ) : (
-            <p className="profile-bio">{bio || 'Nicio descriere.'}</p>
-          )}
+          <p className="profile-bio">{bio || 'Nicio descriere.'}</p>
         </section>
 
         <section className="profile-section">
@@ -153,8 +130,10 @@ export function ProfileView() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
               </span>
-              <span className="contact-row__value">Online acum</span>
-              <span className="presence-badge">Online</span>
+              <span className="contact-row__value">{isOnline ? 'Online acum' : 'Offline'}</span>
+              <span className={`presence-badge ${isOnline ? '' : 'presence-badge--offline'}`}>
+                {isOnline ? 'Online' : 'Offline'}
+              </span>
             </div>
           </div>
         </section>

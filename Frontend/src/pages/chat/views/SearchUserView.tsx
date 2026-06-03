@@ -17,9 +17,10 @@ const STATUS_LABELS: Record<string, string> = {
 
 interface SearchUserViewProps {
   onStartChat?: () => void
+  onOpenProfile?: (userId: string, meta: { title: string; presence: string; avatarText: string; accent: string }) => void
 }
 
-export function SearchUserView({ onStartChat }: SearchUserViewProps) {
+export function SearchUserView({ onStartChat, onOpenProfile }: SearchUserViewProps) {
   const [query, setQuery] = useState('')
   const [users, setUsers] = useState<FriendDto[]>([])
   const [sent, setSent] = useState<Set<string>>(new Set())
@@ -28,9 +29,7 @@ export function SearchUserView({ onStartChat }: SearchUserViewProps) {
   useEffect(() => {
     const token = getToken()
     if (!token) return
-    friendsApi.searchUsers('', token)
-      .then(setUsers)
-      .catch(() => {})
+    friendsApi.searchUsers('', token).then(setUsers).catch(() => {})
   }, [])
 
   const results = query.trim()
@@ -59,6 +58,15 @@ export function SearchUserView({ onStartChat }: SearchUserViewProps) {
       'linear-gradient(135deg, #8a2be2, #ff007f)',
     )
     onStartChat?.()
+  }
+
+  function handleOpenProfile(user: FriendDto) {
+    onOpenProfile?.(user.id, {
+      title: user.name ?? '',
+      presence: user.status ?? 'offline',
+      avatarText: getInitials(user.name),
+      accent: 'linear-gradient(135deg, #8a2be2, #ff007f)',
+    })
   }
 
   return (
@@ -107,11 +115,20 @@ export function SearchUserView({ onStartChat }: SearchUserViewProps) {
           const isSent = sent.has(user.id)
           return (
             <div key={user.id} className="user-card">
-              <div className="user-card__avatar-wrap">
+              <div
+                className="user-card__avatar-wrap"
+                style={{ cursor: 'pointer' }}
+                onClick={() => handleOpenProfile(user)}
+                title="Vezi profil"
+              >
                 <div className="user-card__avatar">{getInitials(user.name)}</div>
                 <span className={`user-card__dot user-card__dot--${user.status ?? 'offline'}`} />
               </div>
-              <div className="user-card__info">
+              <div
+                className="user-card__info"
+                style={{ cursor: 'pointer' }}
+                onClick={() => handleOpenProfile(user)}
+              >
                 <span className="user-card__name">{user.name ?? ''}</span>
                 <span className="user-card__role">{user.role ?? ''}</span>
                 <span className="user-card__status">{STATUS_LABELS[user.status ?? 'offline'] ?? 'Offline'}</span>

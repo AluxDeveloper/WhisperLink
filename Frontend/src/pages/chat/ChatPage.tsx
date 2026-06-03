@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { ViewId } from '../../types'
-import { ChatProvider } from '../../store/ChatStore'
+import { ChatProvider, useChatStore } from '../../store/ChatStore'
 import { ConversationList, ChatWindow, Sidebar } from '../../components/chat'
 import { useConversations, useMessages } from '../../hooks'
 import { NewChatView }       from './views/NewChatView'
@@ -10,6 +10,7 @@ import { SettingsView }      from './views/SettingsView'
 import { FriendsView }       from './views/FriendsView'
 import { AddFriendView }     from './views/AddFriendView'
 import { ProfileView }       from './views/ProfileView'
+import { UserProfileView }   from './views/UserProfileView'
 import { AdminDashboard }    from '../admin/AdminDashboard'
 import './ChatPage.css'
 
@@ -22,13 +23,36 @@ function ChatPageContent({ onBack }: ChatPageProps) {
     const saved = localStorage.getItem('currentView') as ViewId | null
     return saved ?? 'chat'
   })
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [selectedUserMeta, setSelectedUserMeta] = useState<{
+    title: string; presence: string; avatarText: string; accent: string
+  } | null>(null)
 
   const { brandName, currentUser, conversations } = useConversations()
   const { activeConversation } = useMessages()
+  const { loadConversation } = useChatStore()
 
   useEffect(() => {
     localStorage.setItem('currentView', currentView)
   }, [currentView])
+
+  function openUserProfile(userId: string, meta: { title: string; presence: string; avatarText: string; accent: string }) {
+    setSelectedUserId(userId)
+    setSelectedUserMeta(meta)
+    setCurrentView('user-profile')
+  }
+
+  function startChatWithSelected() {
+    if (!selectedUserId || !selectedUserMeta) return
+    loadConversation(
+      selectedUserId,
+      selectedUserMeta.title,
+      selectedUserMeta.presence,
+      selectedUserMeta.avatarText,
+      selectedUserMeta.accent,
+    )
+    setCurrentView('chat')
+  }
 
   return (
     <main className="chat-page">
@@ -46,6 +70,7 @@ function ChatPageContent({ onBack }: ChatPageProps) {
             <ConversationList
               conversations={conversations}
               activeConversationId={activeConversation.id}
+              onOpenProfile={openUserProfile}
             />
             {activeConversation.id
               ? <ChatWindow currentUser={currentUser} conversation={activeConversation} />
@@ -54,14 +79,21 @@ function ChatPageContent({ onBack }: ChatPageProps) {
           </>
         )}
 
-        {currentView === 'search' && <SearchUserView onStartChat={() => setCurrentView('chat')} />}
-        {currentView === 'new-chat' && (<NewChatView onStartChat={() => setCurrentView('chat')} />)}
+        {currentView === 'search'        && <SearchUserView onStartChat={() => setCurrentView('chat')} onOpenProfile={openUserProfile} />}
+        {currentView === 'new-chat'      && <NewChatView onStartChat={() => setCurrentView('chat')} />}
         {currentView === 'notifications' && <NotificationsView />}
         {currentView === 'settings'      && <SettingsView />}
-        {currentView === 'friends'       && <FriendsView />}
+        {currentView === 'friends'       && <FriendsView onOpenProfile={openUserProfile} />}
         {currentView === 'add-friend'    && <AddFriendView />}
         {currentView === 'admin'         && <AdminDashboard />}
         {currentView === 'profile'       && <ProfileView />}
+        {currentView === 'user-profile'  && selectedUserId && (
+          <UserProfileView
+            userId={selectedUserId}
+            onStartChat={startChatWithSelected}
+            onBack={() => setCurrentView('chat')}
+          />
+        )}
       </div>
     </main>
   )

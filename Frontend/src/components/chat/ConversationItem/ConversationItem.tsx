@@ -6,21 +6,29 @@ interface ConversationItemProps {
   conversation: ConversationPreview
   isActive?: boolean
   onSelect?: () => void
+  onOpenProfile?: (userId: string, meta: { title: string; presence: string; avatarText: string; accent: string }) => void
 }
 
-export function ConversationItem({ conversation, isActive = false, onSelect }: ConversationItemProps) {
+export function ConversationItem({ conversation, isActive = false, onSelect, onOpenProfile }: ConversationItemProps) {
   const isOnline = conversation.presence === 'online'
+
+  function handleAvatarClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    onOpenProfile?.(conversation.id, {
+      title: conversation.title,
+      presence: conversation.presence,
+      avatarText: conversation.avatarText,
+      accent: conversation.accent,
+    })
+  }
 
   return (
     <button
       className={joinClassNames('conv-item', isActive && 'conv-item--active')}
       onClick={onSelect}
     >
-      <div className="conv-avatar-wrap">
-        <div
-          className="conv-avatar"
-          style={{ background: conversation.accent }}
-        >
+      <div className="conv-avatar-wrap" onClick={handleAvatarClick} title="Vezi profil">
+        <div className="conv-avatar" style={{ background: conversation.accent }}>
           {conversation.avatarText}
         </div>
         {isOnline && <span className="conv-online-dot" />}

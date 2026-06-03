@@ -7,9 +7,10 @@ import './ConversationList.css'
 interface ConversationListProps {
   conversations: ConversationPreview[]
   activeConversationId: string
+  onOpenProfile?: (userId: string, meta: { title: string; presence: string; avatarText: string; accent: string }) => void
 }
 
-export function ConversationList({ conversations, activeConversationId }: ConversationListProps) {
+export function ConversationList({ conversations, activeConversationId, onOpenProfile }: ConversationListProps) {
   const [search, setSearch] = useState('')
   const { loadConversation } = useChatStore()
 
@@ -54,6 +55,7 @@ export function ConversationList({ conversations, activeConversationId }: Conver
             conversation={conversation}
             isActive={conversation.id === activeConversationId}
             onSelect={() => handleSelect(conversation)}
+            onOpenProfile={onOpenProfile}
           />
         ))}
         {filtered.length === 0 && (

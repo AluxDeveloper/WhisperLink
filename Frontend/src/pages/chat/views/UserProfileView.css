@@ -1,0 +1,49 @@
+.user-profile-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  align-self: flex-start;
+  margin-top: 40px;
+}
+
+.user-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.user-profile-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.user-profile-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-main);
+}
+
+.user-profile-btn--message {
+  background: linear-gradient(135deg, #8a2be2, #ff007f);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(255, 0, 127, 0.3);
+}
+
+.user-profile-btn--message:hover {
+  background: linear-gradient(135deg, #9d3df0, #ff1a8c);
+  color: #fff;
+}
+
+.presence-badge--offline {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.4);
+}
